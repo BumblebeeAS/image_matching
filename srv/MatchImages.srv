@@ -2,4 +2,4 @@ int64 numKeypoints
 
 ---
 int64 result
-superglue_ros/KeypointsDict keypoints_dict
+feature_matcher/KeypointsDict keypoints_dict

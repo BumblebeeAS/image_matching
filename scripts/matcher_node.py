@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os.path as path
+from feature_matcher.tools import plot_matches
 from tools.tools import *
 import logging
 from models.superglue import SuperGlue

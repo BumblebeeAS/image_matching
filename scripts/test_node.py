@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 import rospy
-from std_msgs.msg import String, Float32
-import message_filters
 import cv2
 
 # from cv_bridge import CvBridge
