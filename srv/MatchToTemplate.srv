@@ -3,4 +3,4 @@ string template_name
 
 ---
 int64 result
-feature_matcher/KeypointsDict keypoints_dict
+image_matching/KeypointsDict keypoints_dict

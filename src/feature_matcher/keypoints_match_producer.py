@@ -71,10 +71,10 @@ if __name__ == "__main__":
 
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"
     # bboxes_file = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/tommygun_gt.csv"
-    # template_img = cv2.imread("/home/developer/workspace/src/feature_matcher/templates/Tommy Gun.jpeg")
+    # template_img = cv2.imread("/home/developer/workspace/src/image_matching/templates/Tommy Gun.jpeg")
     folder_path = "/home/developer/workspace/src/rosbags/bootlegger_torpedo_sim1_2022-12-26-18-25-31/Images"
     bboxes_file = "/home/developer/workspace/src/rosbags/bootlegger_torpedo_sim1_2022-12-26-18-25-31/bootlegger1.csv"
-    template_img = cv2.imread("/home/developer/workspace/src/feature_matcher/templates/Bootlegger.jpeg")
+    template_img = cv2.imread("/home/developer/workspace/src/image_matching/templates/Bootlegger.jpeg")
 
     # 0.0402967947s
     # image_match_producer = TwoStageMatchProducer(template_img, SiftKeypointProducer(), BFKeypointMatcher())

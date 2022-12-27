@@ -60,11 +60,11 @@ if __name__ == "__main__":
 
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"
     # bboxes_file = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/tommygun_gt.csv"
-    # template_img = cv2.imread("/home/developer/workspace/src/feature_matcher/templates/Tommy Gun.jpeg")
+    # template_img = cv2.imread("/home/developer/workspace/src/image_matching/templates/Tommy Gun.jpeg")
     folder_path = "/home/developer/workspace/src/rosbags/bootlegger_torpedo_sim1_2022-12-26-18-25-31/Images"
     bboxes_file = "/home/developer/workspace/src/rosbags/bootlegger_torpedo_sim1_2022-12-26-18-25-31/bootlegger1.csv"
     template_img = cv2.imread(
-        "/home/developer/workspace/src/feature_matcher/templates/Bootlegger.jpeg")
+        "/home/developer/workspace/src/image_matching/templates/Bootlegger.jpeg")
 
     # 0.0402967947s
     # match_image = TwoStageMatchProducer(template_img, SiftKeypointProducer(), BFKeypointMatcher())
@@ -120,11 +120,11 @@ if __name__ == "__main__":
 
             #0.48s
             rot, trans = pose_estimator_1.compute_pose(img, (l, t, w, h) if CROP_IMAGES else None)
-            # print(", ".join(map(str,np.rad2deg(rot.squeeze()))), ", ".join(map(str, trans.squeeze())))
+            print(", ".join(map(str,np.rad2deg(rot.squeeze()))), ", ".join(map(str, trans.squeeze())))
 
             # 0.3828051131s
             rot, trans = pose_estimator_2.compute_pose(img, (l, t, w, h) if CROP_IMAGES else None)
-            # print(", ".join(map(str,np.rad2deg(rot.squeeze()))), ", ".join(map(str, trans.squeeze())))
+            print(", ".join(map(str,np.rad2deg(rot.squeeze()))), ", ".join(map(str, trans.squeeze())))
 
         except Exception as e:
             logging.error(e)
