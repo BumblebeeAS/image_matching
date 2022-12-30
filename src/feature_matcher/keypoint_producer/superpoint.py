@@ -25,12 +25,12 @@ class SuperPointKeypointProducer(KeypointProducer):
         "cuda": True,
     }
 
-    def __init__(self, config=None):
-        if config is None:
-            config = {}
+    def __init__(self, config={}):
+        self.debug = config.get("debug", False)
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.INFO)
 
-        self.config = self.default_config
-        self.config = {**self.config, **config}
+        self.config = {**SuperPointKeypointProducer.default_config, **config}
         logging.info("SuperPoint detector config: ")
         logging.info(self.config)
 
@@ -73,4 +73,8 @@ class SuperPointKeypointProducer(KeypointProducer):
         """
         with torch.no_grad():
             pred = self.superpoint(self.preprocess(image))
-        return Keypoints(image.shape[:2], pred["keypoints"][0].cpu().detach().numpy(), pred["descriptors"][0].cpu().detach().numpy().transpose(), pred["scores"][0].cpu().detach().numpy())
+        return Keypoints(image.shape[:2],
+                         pred["keypoints"][0].cpu().detach().numpy(),
+                         pred["descriptors"][0].cpu(
+        ).detach().numpy().transpose(),
+            pred["scores"][0].cpu().detach().numpy())

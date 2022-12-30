@@ -1,12 +1,13 @@
 import os
 import sys
 from pathlib import Path
+from typing_extensions import override
 LoFTR_dir = os.path.abspath(Path(os.path.realpath(
     __file__)).parents[0] / "models/QuadTreeAttention/FeatureMatching/src/")  # noqa E402
 sys.path.append(LoFTR_dir)  # noqa E402
 
 from loftr import LoFTR, default_cfg
-from typing import Tuple
+from typing import Optional, Tuple
 import cv2
 import numpy as np
 from feature_matcher.keypoints import Keypoints
@@ -21,10 +22,8 @@ import torch
 class LoFTRMatchProducer(KeypointsMatchProducer):
     NUM_MATCHES = 20
 
-    def __init__(self, template_img, config=None):
-        super(LoFTRMatchProducer, self).__init__(template_img)
-        if config is None:
-            config = {}
+    def __init__(self, config={}):
+        super(LoFTRMatchProducer, self).__init__()
 
         self.config = default_cfg
         self.config = {**self.config, **config}
@@ -42,24 +41,26 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
 
         self.img_size = (640, 480)
 
-        self.template_img, self.template_scale, self.template_lxty = self.make_query_image(
-            template_img)
-        self.template_img = torch.from_numpy(self.template_img)[
-            None][None].to(device=self.device) / 255.0
-        self.last_data = {"image0": self.template_img}
+    @override
+    def preprocess_img(self, img):
+        """Convert cropped image into form required by matcher."""
+        img_tensor, scale, lxty = self.make_query_image(img)
+        img_tensor = torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+        return (img_tensor, scale, lxty)
 
-    def compute_matches(self, other: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Computes matches between template image and input image.
-        Args:
-            image: numpy array of image
-        """
-        other_shape = other.shape[:2]
-        other, scale, lxty = self.make_query_image(other)
-        other = torch.from_numpy(other)[None][None].to(
-            device=self.device) / 255.0
+    def compute_matches(self, num_keypoints: int = 20, template: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray]:
+        img0, img1 = self.get_images(template)
+
+        if img0 is None or img1 is None:
+            raise Exception("Images not registered")
+
+        template_tensor, template_scale, template_lxty = img0.results
+        other_tensor, scale, lxty = img1.results
+
         with torch.no_grad():
-            self.last_data = {**self.last_data, 'image1': other}
+            self.update_last_data
+            self.last_data = {
+                "image0": template_tensor, 'image1': other_tensor}
             self.matcher(self.last_data)
             conf_matrix = conf_matrix.cpu().numpy()
 
@@ -76,19 +77,20 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
             #     mconf = (mconf - conf_min) / (conf_max - conf_min + 1e-5)
 
             # filter only the most confident features
-            n_top = 20
             indices = np.argsort(mconf)[::-1]
-            indices = indices[:n_top]
+            indices = indices[:num_keypoints]
             mkpts0 = mkpts0[indices, :]
             mkpts1 = mkpts1[indices, :]
 
             # get keypoints corresponding to original image
-            mkpts0[:, :2] = (
-                mkpts0[:, :2] - np.array(self.template_lxty)) / self.template_scale
+            mkpts0[:, :2] = (mkpts0[:, :2] - np.array(template_lxty)) / template_scale
             mkpts1[:, :2] = (mkpts1[:, :2] - np.array(lxty)) / scale
-            keypoints1 = Keypoints(
-                self.get_template().shape[:2], mkpts0, None, mconf)
-            keypoints2 = Keypoints(other_shape, mkpts1, None, mconf)
+            if img0.lxtyrxby is not None:
+                mkpts0[:, :2] = mkpts0[:, :2] + img0.lxtyrxby[:2]
+            if img1.lxtyrxby is not None:
+                mkpts1[:, :2] = mkpts1[:, :2] + img1.lxtyrxby[:2]
+            keypoints1 = Keypoints(img0.img.shape[:2], mkpts0, None, mconf)
+            keypoints2 = Keypoints(img1.img.shape[:2], mkpts1, None, mconf)
             return keypoints1, keypoints2
 
     def make_query_image(self, frame):

@@ -4,8 +4,8 @@ from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
 class FastKeypointProducer(KeypointProducer):
-    def __init__(self, num_keypoints: int = 500):
-        self.num_keypoints = num_keypoints
+    def __init__(self, config={"num_keypoints": 500}):
+        self.num_keypoints = config.get("num_keypoints", 500)
         self.fast = cv2.FastFeatureDetector_create(threshold=20, nonmaxSuppression=True, type=cv2.FAST_FEATURE_DETECTOR_TYPE_9_16)
         # self.fast = cv2.xfeatures2d.StarDetector_create()
         self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()

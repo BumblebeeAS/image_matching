@@ -2,63 +2,77 @@
 import os
 from pathlib import Path
 
-from rospkg import RosPack
 import cv2
-from feature_matcher.tools import time_func
+import message_filters
 import rospy
-from sensor_msgs.msg import Image, CompressedImage
-from feature_matcher.two_stage_match_producer import TwoStageMatchProducer
-from feature_matcher.coarse_loftr_matcher import Coarse_LoFTRMatchProducer
-from feature_matcher.keypoint_producer import OrbKeypointProducer, SiftKeypointProducer, SuperPointKeypointProducer, FastKeypointProducer
-from feature_matcher.keypoint_matcher.bf import BFKeypointMatcher
-from feature_matcher.keypoint_matcher.superglue import SuperglueKeypointMatcher
-
 from cv_bridge import CvBridge, CvBridgeError
-# from feature_matcher.loftr_matcher import LoFTRMatchProducer # requires CUDA
-import rospy
+from feature_matcher.keypoints_match_producer import \
+    get_keypoints_match_producer
+from rospkg import RosPack
+from sensor_msgs.msg import CompressedImage
+
+from bb_msgs.msg import DetectedObjects
 
 
 class BasicFeatureMatcher:
-    def __init__(self, input_topic, visualization_topic, template_path):
+    def __init__(self, input_topic, visualization_topic, template, template_path, detected_objects_topic = None):
         self.bridge = CvBridge()
-
+        self.template = template
         self.template_img = cv2.imread(template_path)
         # self.image_match_producer = TwoStageMatchProducer(self.template_img, SuperPointKeypointProducer(), SuperglueKeypointMatcher())
-        self.image_match_producer = Coarse_LoFTRMatchProducer(self.template_img)
+        self.image_match_producer = get_keypoints_match_producer(None, "coarse_loftr", {"debug": True}, {"debug": True})
 
-
-        self.visualization_pub = rospy.Publisher(visualization_topic, Image, queue_size=1)
-        self.image_match_producer.visualize_callbacks.append(lambda img: self.visualization_pub.publish(self.bridge.cv2_to_imgmsg(img, "bgr8")))
+        self.visualization_pub = rospy.Publisher(visualization_topic, CompressedImage, queue_size=1)
+        self.image_match_producer.visualize_callbacks.append(
+            lambda img: self.visualization_pub.publish(self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")))
+        
+        self.image_match_producer.register_template(template, cv2.imread(template_path))
 
         self.PADDING = 10
-        self.CROP_IMAGES = True
+        self.CROP_IMAGES = detected_objects_topic is not None
 
-        self.image_sub = rospy.Subscriber(
-            input_topic, CompressedImage, self.process_image_msg, queue_size=1)
-        
-        rospy.spin()
+        if self.CROP_IMAGES:
+            rospy.loginfo("Subscribing to detected objects")
+            self.detected_objects_sub = message_filters.Subscriber(detected_objects_topic, DetectedObjects)
+        self.image_sub = message_filters.Subscriber(input_topic, CompressedImage)
+        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub, self.detected_objects_sub] if self.CROP_IMAGES else [self.image_sub], 10, 1)
+        ts.registerCallback(self.cropped_image_callback)
 
-    @time_func
-    def process_image_msg(self, msg, bboxes = None):
+    def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
+        rospy.logdebug_throttle(10, f"Received image {img_msg.header.seq}")
         try:
-            img = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+            img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
         except CvBridgeError as e:
             print(e)
 
+        detected_object = None
+        if self.CROP_IMAGES and detected_objects is not None:
+            if any([x.name == self.template for x in detected_objects.detected]):
+                detected_object = sorted(detected_objects.detected, key=lambda x: x.extra[0], reverse=True)[0]
 
-        if bboxes is not None:
-            x, y, w, h = [int(_) for _ in bboxes[i]]
+        if detected_object is not None:
+            PADDING = 10
+            cx, cy, w, h = detected_object.centre_x, detected_object.centre_y, detected_object.bbox_width, detected_object.bbox_height
+            x, y = int(cx - w / 2), int(cy - h / 2)
+            lxtyrxby = (max(0, x-PADDING), max(0, y-PADDING), min(img.shape[1], x+w+PADDING), min(img.shape[0], y+h+PADDING))
+        else: 
+            lxtyrxby = None
 
-            if self.CROP_IMAGES:
-                img = img[y-self.PADDING:y+h+self.PADDING,
-                        x-self.PADDING:x+w+self.PADDING, :]
 
-        kp1, kp2 = self.image_match_producer.process_image(img)
-        rospy.loginfo_throttle(10, f"Found {len(kp1)} keypoints in image")
+        kp1, kp2 = self.image_match_producer.process_image(img, self.template, lxtyrxby = lxtyrxby,  debug=True)
+       
 
 
 if __name__ == "__main__":
-    rospy.init_node("basic_feature_matcher", anonymous=True)
-    BasicFeatureMatcher("/auv4/front_cam/image_color/compressed",
-                        "/visualization",
-                        os.path.abspath(Path(RosPack().get_path("feature_matcher"))/"templates"/"Bootlegger.jpeg"))
+    rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
+    camera_topic = rospy.get_param("~camera_topic", "/auv4/front_cam/image_color/compressed")
+    visualization_topic = rospy.get_param("~visualization_topic", "/visualization")
+    template = rospy.get_param("~template", "Bootlegger")
+    template_path = rospy.get_param("~template_path", os.path.abspath(Path(RosPack().get_path("image_matching"))/"templates"/f"{template}.jpeg"))
+    detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
+    detector = BasicFeatureMatcher(camera_topic, 
+                        visualization_topic,
+                        template,
+                        template_path,
+                        detected_objects_topic)
+    rospy.spin()

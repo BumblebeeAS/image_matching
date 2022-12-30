@@ -12,6 +12,19 @@ import matplotlib.cm as cm
 def image2tensor(frame, device):
     return torch.from_numpy(frame / 255.0).float()[None, None].to(device)
 
+def white_balance(img):
+    result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    avg_a = np.average(result[:, :, 1])
+    avg_b = np.average(result[:, :, 2])
+    result[:, :, 1] = result[:, :, 1] - (
+        (avg_a - 128) * (result[:, :, 0] / 255.0) * 1.1
+    )
+    result[:, :, 2] = result[:, :, 2] - (
+        (avg_b - 128) * (result[:, :, 0] / 255.0) * 1.1
+    )
+    result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
+    return result
+
 def create_show_image(window_name="image"):
     cv2.namedWindow(window_name, cv2.WINDOW_GUI_EXPANDED)
     def show_image(img):
@@ -19,26 +32,35 @@ def create_show_image(window_name="image"):
         cv2.waitKey(1)
     return show_image
 
-def time_func(func, name=None):
-    # This function shows the execution time of
-    # the function object passed
-    if name is None:
-        name = func.__name__
-    total_time = 0
-    count = 0
+def create_save_image(filename="matched_image.png"):
+    def save_image(img):
+        cv2.imwrite(filename, img)
+    return save_image
 
-    def wrap_func(*args, **kwargs):
-        nonlocal total_time, count, name, func
-        t1 = time()
-        result = func(*args, **kwargs)
-        t2 = time()
-        total_time += t2 - t1
-        count += 1
-        if count % 10 == 0:
-            logging.info(
-                f'Function {name!r} executed in {(total_time / count):.10f}s')
-        return result
-    return wrap_func
+def time_func(name=None):
+    def time_func_decorator(func):
+        nonlocal name
+        # This function shows the execution time of
+        # the function object passed
+        if name is None:
+            name = func.__name__
+        total_time = 0
+        count = 0
+
+        def wrap_func(*args, **kwargs):
+            nonlocal total_time, count, name, func
+            t1 = time()
+            result = func(*args, **kwargs)
+            t2 = time()
+            total_time += t2 - t1
+            count += 1
+            if kwargs.get('debug', False):
+                if count % 10 == 0:
+                    logging.info(
+                        f'Function {name!r} executed in {(total_time / count):.10f}s')
+            return result
+        return wrap_func
+    return time_func_decorator
 
 # --- VISUALIZATION ---
 # based on: https://github.com/magicleap/SuperGluePretrainedNetwork/blob/master/models/utils.py

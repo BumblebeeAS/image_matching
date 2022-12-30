@@ -1,10 +1,14 @@
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+import os
+import sys
 
-from models.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
-from models.SuperGluePretrainedNetwork.models.superglue import SuperGlue
+from rospkg import RosPack  # noqa E402
+sys.path.append(os.path.abspath(RosPack().get_path("image_matching") + "/src/feature_matcher"))  # noqa E402
+
+from feature_matcher.models.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
+from feature_matcher.models.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 
 import torch
 import torch.onnx

@@ -1,7 +1,11 @@
+from copy import copy
+import logging
+import time
+from typing_extensions import override
 from feature_matcher.models.Coarse_LoFTR_TRT.utils import get_coarse_match, make_student_config
 from feature_matcher.models.Coarse_LoFTR_TRT.loftr.utils.cvpr_ds_config import default_cfg
 from feature_matcher.models.Coarse_LoFTR_TRT.loftr import LoFTR
-from typing import Tuple
+from typing import Optional, Tuple
 import cv2
 import numpy as np
 from feature_matcher.keypoints import Keypoints
@@ -9,6 +13,8 @@ from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 import torch
 import os
 from pathlib import Path
+
+from feature_matcher.tools import time_func
 LOFTR_dir = os.path.abspath(Path(os.path.realpath(
     __file__)).parents[0] / "models/Coarse_LoFTR_TRT")
 
@@ -16,8 +22,8 @@ LOFTR_dir = os.path.abspath(Path(os.path.realpath(
 class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
     NUM_MATCHES = 20
 
-    def __init__(self, template_img):
-        super(Coarse_LoFTRMatchProducer, self).__init__(template_img)
+    def __init__(self, config={}):
+        super(Coarse_LoFTRMatchProducer, self).__init__(config)
         model_cfg = make_student_config(default_cfg)
         self.loftr_coarse_resolution = model_cfg['resolution'][0]
         self.img_size = (model_cfg['input_width'], model_cfg['input_height'])
@@ -29,27 +35,28 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
             state_dict = checkpoint['model_state_dict']
             self.matcher.load_state_dict(state_dict, strict=False)
             self.matcher = self.matcher.eval().to(device=self.device)
-            print('Successfully loaded pre-trained weights.')
+            logging.info('Successfully loaded pre-trained weights.')
         else:
-            print('Failed to load weights')
+            logging.error('Failed to load weights')
+            raise Exception('Failed to load weights')
 
-        self.template_img, self.template_scale, self.template_lxty = self.make_query_image(
-            template_img)
-        self.template_img = torch.from_numpy(self.template_img)[
-            None][None].to(device=self.device) / 255.0
+    @override
+    def preprocess_img(self, img):
+        """Convert cropped image into form required by matcher."""
+        img_tensor, scale, lxty = self.make_query_image(img)
+        img_tensor = torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+        return (img_tensor, scale, lxty)
 
-    def compute_matches(self, other: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Computes matches between template image and input image.
-        Args:
-            image: numpy array of image
-        """
-        other_shape = other.shape[:2]
-        other, scale, lxty = self.make_query_image(other)
-        other = torch.from_numpy(other)[None][None].to(
-            device=self.device) / 255.0
+    def compute_matches(self, num_keypoints: int = 20, template: Optional[str] = None) -> Tuple[Keypoints, Keypoints]:
+        img0, img1 = self.get_images(template)
+        if img0 is None or img1 is None:
+            raise Exception("Images not registered")
+
+        template_tensor, template_scale, template_lxty = img0.results
+        other_tensor, scale, lxty = img1.results
+
         with torch.no_grad():
-            conf_matrix, _ = self.matcher(self.template_img, other)
+            conf_matrix, _ = self.matcher(template_tensor, other_tensor)
             conf_matrix = conf_matrix.cpu().numpy()
 
             mkpts0, mkpts1, mconf = get_coarse_match(
@@ -61,21 +68,22 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
                 conf_max = mconf.max()
                 mconf = (mconf - conf_min) / (conf_max - conf_min + 1e-5)
 
-            # filter only the most confident features
-            n_top = 20
-            indices = np.argsort(mconf)[::-1]
-            indices = indices[:n_top]
-            mkpts0 = mkpts0[indices, :]
-            mkpts1 = mkpts1[indices, :]
+        # filter only the most confident features
+        indices = np.argsort(mconf)[::-1]
+        indices = indices[:num_keypoints]
+        mkpts0 = mkpts0[indices, :]
+        mkpts1 = mkpts1[indices, :]
 
-            # get keypoints corresponding to original image
-            mkpts0[:, :2] = (
-                mkpts0[:, :2] - np.array(self.template_lxty)) / self.template_scale
-            mkpts1[:, :2] = (mkpts1[:, :2] - np.array(lxty)) / scale
-            keypoints1 = Keypoints(
-                self.get_template().shape[:2], mkpts0, None, mconf)
-            keypoints2 = Keypoints(other_shape, mkpts1, None, mconf)
-            return keypoints1, keypoints2
+        # get keypoints corresponding to non-cropped image
+        mkpts0[:, :2] = (mkpts0[:, :2] - np.array(template_lxty)) / template_scale
+        mkpts1[:, :2] = (mkpts1[:, :2] - np.array(lxty)) / scale
+        if img0.lxtyrxby is not None:
+            mkpts0[:, :2] = mkpts0[:, :2] + img0.lxtyrxby[:2]
+        if img1.lxtyrxby is not None:
+            mkpts1[:, :2] = mkpts1[:, :2] + img1.lxtyrxby[:2]
+        keypoints1 = Keypoints(img0.img.shape[:2], mkpts0, None, mconf)
+        keypoints2 = Keypoints(img1.img.shape[:2], mkpts1, None, mconf)
+        return keypoints1, keypoints2
 
     def make_query_image(self, frame):
         query_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

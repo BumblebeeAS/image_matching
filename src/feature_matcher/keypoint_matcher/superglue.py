@@ -23,8 +23,6 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         "match_threshold": 0.2,
         "cuda": True,
     }
-    NUM_MATCHES = 20
-
 
     def __init__(self, config=None) -> None:
         if config is None:
@@ -41,9 +39,11 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         )
 
         assert self.config["weights"] in ["indoor", "outdoor"]
-        path_ =  os.path.join(SuperGlue_dir, 'models', 'weights', f'superpoint_{self.config["weights"]}.pth')
+        path_ = os.path.join(SuperGlue_dir, 'models', 'weights',
+                             f'superpoint_{self.config["weights"]}.pth')
         self.config["path"] = path_
-        ts_file = os.path.join(SuperGlue_dir, 'models', 'weights', f'superpoint_{self.config["weights"]}.zip')
+        ts_file = os.path.join(
+            SuperGlue_dir, 'models', 'weights', f'superpoint_{self.config["weights"]}.zip')
 
         logging.info("Creating SuperGlue matcher...")
         if False:  # os.path.isfile(ts_file):
@@ -107,10 +107,10 @@ class SuperglueKeypointMatcher(KeypointMatcher):
             pred: Dict = self.superglue(data)
         return pred
 
-    def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints = NUM_MATCHES) -> Dict:
+    def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20) -> Dict:
         preprocessed = self.preprocess(keypoints1, keypoints2)
         preds = self.forward(preprocessed)
-        
+
         matches = preds["matches0"][0].cpu().numpy()
         confidence = preds["matching_scores0"][0].cpu().detach().numpy()
 
@@ -126,7 +126,9 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         keypoints1 = keypoints1[v0][:num_keypoints]
         keypoints2 = keypoints2[v1][:num_keypoints]
 
-        keypoints1 = Keypoints(keypoints1.image_size, keypoints1.keypoints, keypoints1.descriptors, keypoints1.scores * confidence[v0][:num_keypoints])
-        keypoints2 = Keypoints(keypoints2.image_size, keypoints2.keypoints, keypoints2.descriptors, keypoints2.scores * confidence[v0][:num_keypoints])
+        keypoints1 = Keypoints(keypoints1.image_size, keypoints1.keypoints,
+                               keypoints1.descriptors, keypoints1.scores * confidence[v0][:num_keypoints])
+        keypoints2 = Keypoints(keypoints2.image_size, keypoints2.keypoints,
+                               keypoints2.descriptors, keypoints2.scores * confidence[v0][:num_keypoints])
 
         return keypoints1, keypoints2

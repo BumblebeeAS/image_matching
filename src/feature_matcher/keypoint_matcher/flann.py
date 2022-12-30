@@ -5,9 +5,16 @@ from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
-class BFKeypointMatcher(KeypointMatcher):
-    def __init__(self, config={"cross_check": False}):
-        self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)
+class FlannKeypointMatcher(KeypointMatcher):
+    def __init__(self, config={"cross_check": False, "num_matches": 20}):
+        self.matcher = cv2.DescriptorMatcher_create(
+            cv2.DescriptorMatcher_FLANNBASED)
+
+        # self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)
+        num_matches = config.get("num_matches", 50)
+        if not isinstance(num_matches, int):
+            raise ValueError("num_matches must be an integer")
+        self.num_matches = num_matches
 
     def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20) -> Tuple[Keypoints, Keypoints]:
         """
@@ -20,11 +27,19 @@ class BFKeypointMatcher(KeypointMatcher):
             M Keypoints in the first image
             M Keypoints in the second image that matches to keypoints in first image.
         """
-        matches = self.matcher.match(keypoints1.descriptors, keypoints2.descriptors)
+        matches = self.matcher.knnMatch(
+            keypoints1.descriptors, keypoints2.descriptors, 2)
         selected_matches = []
         matches1, matches2 = [], []
-        for match in sorted(matches, key=lambda x: x.distance):
-            if len(selected_matches) >= num_keypoints:
+        # -- Filter matches using the Lowe's ratio test
+        ratio_thresh = 0.7
+        good_matches = []
+        for m, n in matches:
+            if m.distance < ratio_thresh * n.distance:
+                good_matches.append(m)
+
+        for match in sorted(good_matches, key=lambda x: x.distance):
+            if len(selected_matches) >= self.num_matches:
                 break
             i1, i2 = match.queryIdx, match.trainIdx
             keypoint1, keypoint2 = i1, i2
@@ -57,9 +72,12 @@ class BFKeypointMatcher(KeypointMatcher):
         matches = [match for match in matches if match.distance < 0.7]
 
         # filter matches based on ratio test
-        matches = [match for match in matches if match.distance < 0.8 * matches[1].distance]
+        matches = [match for match in matches if match.distance <
+                   0.8 * matches[1].distance]
 
         # get keypoints from matches
-        keypoints1 = [keypoints1.keypoints[match.queryIdx] for match in matches]
-        keypoints2 = [keypoints2.keypoints[match.trainIdx] for match in matches]
+        keypoints1 = [keypoints1.keypoints[match.queryIdx]
+                      for match in matches]
+        keypoints2 = [keypoints2.keypoints[match.trainIdx]
+                      for match in matches]
         return Keypoints(keypoints1), Keypoints(keypoints2)

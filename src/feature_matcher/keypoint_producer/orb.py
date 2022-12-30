@@ -4,8 +4,8 @@ from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
 class OrbKeypointProducer(KeypointProducer):
-    def __init__(self, num_keypoints: int = 500):
-        self.num_keypoints = num_keypoints
+    def __init__(self, config={"num_keypoints": 500}):
+        self.num_keypoints = config.get("num_keypoints", 500)
         self.orb = cv2.ORB_create(self.num_keypoints, nlevels=8, edgeThreshold=15,
             patchSize=31, fastThreshold=20, scaleFactor=1.2, WTA_K=2, scoreType=cv2.ORB_FAST_SCORE, firstLevel=0)
 
