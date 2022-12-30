@@ -1,64 +1,78 @@
 #!/usr/bin/env python3
+import os
+from pathlib import Path
 
-import os.path as path
-import logging
 import cv2
-from tools.tools import *
-from superpoint import SuperPoint
+import message_filters
+import rospy
+from cv_bridge import CvBridge, CvBridgeError
+from feature_matcher.keypoints_match_producer import \
+    get_keypoints_match_producer
+from rospkg import RosPack
+from sensor_msgs.msg import CompressedImage
+
+from bb_msgs.msg import DetectedObjects
 
 
-class SuperPointDetector(object):
-    default_config = {
-        "descriptor_dim": 256,
-        "nms_radius": 4,
-        "keypoint_threshold": 0.005,
-        "max_keypoints": -1,
-        "remove_borders": 4,
-        "path": path.abspath(path.join(__file__ ,"../..")) + "/models/SuperPointPretrainedNetwork/superpoint_v1.pth",
-        "cuda": True
-    }
+class BasicFeatureMatcher:
+    def __init__(self, input_topic, visualization_topic, template, template_path, detected_objects_topic = None):
+        self.bridge = CvBridge()
+        self.template = template
+        self.template_img = cv2.imread(template_path)
+        # self.image_match_producer = TwoStageMatchProducer(self.template_img, SuperPointKeypointProducer(), SuperglueKeypointMatcher())
+        self.image_match_producer = get_keypoints_match_producer(None, "coarse_loftr", {"debug": True}, {"debug": True})
 
-    def __init__(self, config={}):
-        self.config = self.default_config
-        self.config = {**self.config, **config}
-        logging.info("SuperPoint detector config: ")
-        logging.info(self.config)
+        self.visualization_pub = rospy.Publisher(visualization_topic, CompressedImage, queue_size=1)
+        self.image_match_producer.visualize_callbacks.append(
+            lambda img: self.visualization_pub.publish(self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")))
+        
+        self.image_match_producer.register_template(template, cv2.imread(template_path))
 
-        self.device = 'cuda' if torch.cuda.is_available() and self.config["cuda"] else 'cpu'
+        self.PADDING = 10
+        self.CROP_IMAGES = detected_objects_topic is not None
 
-        logging.info("creating SuperPoint detector...")
-        self.superpoint = SuperPoint(self.config).to(self.device)
+        if self.CROP_IMAGES:
+            rospy.loginfo("Subscribing to detected objects")
+            self.detected_objects_sub = message_filters.Subscriber(detected_objects_topic, DetectedObjects)
+        self.image_sub = message_filters.Subscriber(input_topic, CompressedImage)
+        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub, self.detected_objects_sub] if self.CROP_IMAGES else [self.image_sub], 10, 1)
+        ts.registerCallback(self.cropped_image_callback)
 
-    def __call__(self, image):
+    def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
+        rospy.logdebug_throttle(10, f"Received image {img_msg.header.seq}")
         try:
-            if image.shape[2] == 3:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        except: pass # Squeezed gray image array
+            img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
+        except CvBridgeError as e:
+            print(e)
 
-        logging.debug("detecting keypoints with superpoint...")
-        image_tensor = image2tensor(image, self.device)
-        # print(image_tensor.shape)
-        pred = self.superpoint({'image': image_tensor})
+        detected_object = None
+        if self.CROP_IMAGES and detected_objects is not None:
+            if any([x.name == self.template for x in detected_objects.detected]):
+                detected_object = sorted(detected_objects.detected, key=lambda x: x.extra[0], reverse=True)[0]
 
-        ret_dict = {
-            "image_size": np.array([image.shape[0], image.shape[1]]),
-            "torch": pred,
-            "keypoints": pred["keypoints"][0].cpu().detach().numpy(),
-            "scores": pred["scores"][0].cpu().detach().numpy(),
-            "descriptors": pred["descriptors"][0].cpu().detach().numpy().transpose()
-        }
+        if detected_object is not None:
+            PADDING = 10
+            cx, cy, w, h = detected_object.centre_x, detected_object.centre_y, detected_object.bbox_width, detected_object.bbox_height
+            x, y = int(cx - w / 2), int(cy - h / 2)
+            lxtyrxby = (max(0, x-PADDING), max(0, y-PADDING), min(img.shape[1], x+w+PADDING), min(img.shape[0], y+h+PADDING))
+        else: 
+            lxtyrxby = None
 
-        #print(ret_dict)
 
-        return ret_dict
+        kp1, kp2 = self.image_match_producer.process_image(img, self.template, lxtyrxby = lxtyrxby,  debug=True)
+       
 
 
 if __name__ == "__main__":
-    img = cv2.imread( path.abspath(path.join(__file__ ,"../../../..")) +"/test.jpg")
-
-    detector = SuperPointDetector()
-    kptdescs = detector(img)
-
-    img = plot_keypoints(img, kptdescs["keypoints"], kptdescs["scores"])
-    cv2.imshow("SuperPoint", img)
-    cv2.waitKey()
+    rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
+    camera_topic = rospy.get_param("~camera_topic", "/auv4/front_cam/image_color/compressed")
+    visualization_topic = rospy.get_param("~visualization_topic", "/visualization")
+    template = rospy.get_param("~template", "Bootlegger")
+    template_path = rospy.get_param("~template_path", os.path.abspath(Path(RosPack().get_path("image_matching"))/"templates"/f"{template}.jpeg"))
+    detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
+    detector = BasicFeatureMatcher(camera_topic, 
+                        visualization_topic,
+                        template,
+                        template_path,
+                        detected_objects_topic)
+    rospy.spin()

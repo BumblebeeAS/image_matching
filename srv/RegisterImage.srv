@@ -1,4 +1,5 @@
 string topic_name 
-
+string detected_objects_topic_name
+string object_name
 ---
 int64 result

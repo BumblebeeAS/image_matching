@@ -1,81 +1,81 @@
 import unittest
 import os
 import sys
+import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from matcher_service import MatcherNode
-
-from superglue_ros.srv import MatchToTemplateRequest
+from rospkg import RosPack
+sys.path.append(os.path.abspath(RosPack().get_path("image_matching")))  # noqa E402
+from scripts.matcher_service import MatcherNode  # noqa E402
+TEMPLATE_DIR = os.path.abspath(RosPack().get_path("image_matching") + "/templates/")
 
 
 class TestMatcherNode(unittest.TestCase):
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
-        self.matcher_node = MatcherNode()
+        self.matcher_node: MatcherNode = MatcherNode(True,
+                                                     detector_config={
+                                                         "cuda": False,
+                                                     },
+                                                     matcher_config={"cuda": False},)
 
     def test_pipeline(self):
         import cv2
+        img1 = cv2.imread(TEMPLATE_DIR + "/temp/G-Man_real.jpeg")
 
-        img1 = cv2.imread("/home/amadeus/bbauv/src/stereo/imgs/current.jpg")
-        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
-        resp1 = self.matcher_node._add_img(img1)
-        self.assertEqual(resp1.result, 0)
+        image_center = tuple(np.array(img1.shape[1::-1]) / 2)
+        rot_mat = cv2.getRotationMatrix2D(image_center, 0.2, 1.0)
+        img2 = cv2.warpAffine(img1, rot_mat, img1.shape[1::-1], flags=cv2.INTER_LINEAR)
 
-        img2 = cv2.imread("/home/amadeus/bbauv/src/stereo/imgs/template.jpg")
-        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        resp2 = self.matcher_node._add_img(img2)
-        self.assertEqual(resp2.result, 0)
+        resp1 = self.matcher_node.image_match_producer.add_image(img1)
+        resp2 = self.matcher_node.image_match_producer.add_image(img2)
+        self.assertEqual(resp1, 0)
+        self.assertEqual(resp2, 0)
+        self.assertEqual(len(self.matcher_node.image_match_producer.buffer.images), 2)
 
-        self.assertEqual(len(self.matcher_node.buffer), 2)
-
-        matches = self.matcher_node._infer_matches(500)
-
-        from tools.tools import plot_matches
+        matches = self.matcher_node.image_match_producer.compute_matches(500, None)
+        
+        from feature_matcher.tools import plot_matches
 
         img = plot_matches(
-            cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY),
-            cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY),
-            matches["ref_keypoints"][0:200],
-            matches["cur_keypoints"][0:200],
-            matches["match_score"][0:200],
+            img1,
+            img2,
+            matches[0][0:200].keypoints,
+            matches[1][0:200].keypoints,
+            matches[0][0:200].scores,
             layout="lr",
         )
 
         cv2.imshow("MATCHES", img)
         cv2.waitKey(0)
+        self.matcher_node.clear_buffer()
 
     def test_pipeline2(self):
         import cv2
+        # img1 = cv2.imread(TEMPLATE_DIR + "G-Man.jpeg")
+        # resp1 = self.matcher_node.image_match_producer.add_img(img1)
+        # self.assertEqual(resp1.result, 0)
 
-        img1 = cv2.imread("/home/amadeus/bbauv/src/stereo/imgs/current.jpg")
-        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
-        resp1 = self.matcher_node._add_img(img1)
-        print("Result1 : ", resp1.result)
+        img2 = cv2.imread(TEMPLATE_DIR + "/temp/G-Man_real.jpeg")
+        resp2 = self.matcher_node.image_match_producer.add_image(img2)
+        self.assertEqual(resp2, 0)
 
-        assert len(self.matcher_node.buffer) == 1
+        self.assertEqual(len(self.matcher_node.image_match_producer.buffer.images), 1)
 
-        img2 = cv2.imread("/home/amadeus/bbauv/src/stereo/imgs/template.jpg")
-
-        sample_req = MatchToTemplateRequest()
-        sample_req.template_name = "template"
-        sample_req.numKeypoints = 500
-
-        resp = self.matcher_node.match_to_template(sample_req)
-
-        from tools.tools import plot_matches
+        matches = self.matcher_node.image_match_producer.compute_matches(500, "G-Man")
+        
+        from feature_matcher.tools import plot_matches
 
         img = plot_matches(
-            cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY),
-            cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY),
-            [[x.coord[0], x.coord[1]] for x in resp.keypoints_dict.ref_keypoints],
-            [[x.coord[0], x.coord[1]] for x in resp.keypoints_dict.cur_keypoints],
-            resp.keypoints_dict.match_score,
+            self.matcher_node.image_match_producer.get_template("G-Man").img,
+            img2,
+            matches[0][0:200].keypoints,
+            matches[1][0:200].keypoints,
+            matches[0][0:200].scores,
             layout="lr",
         )
 
         cv2.imshow("MATCHES", img)
         cv2.waitKey(0)
-
 
 if __name__ == "__main__":
     unittest.main()

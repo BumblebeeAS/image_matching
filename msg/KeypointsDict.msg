@@ -1,3 +1,3 @@
-superglue_ros/Keypoint[] ref_keypoints
-superglue_ros/Keypoint[] cur_keypoints
+image_matching/Keypoint[] ref_keypoints
+image_matching/Keypoint[] cur_keypoints
 float64[] match_score

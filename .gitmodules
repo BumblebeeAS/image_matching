@@ -1,3 +1,9 @@
 [submodule "models/SuperGluePretrainedNetwork"]
-	path = models/SuperGluePretrainedNetwork
-	url = https://github.com/Amadeus-Winarto/SuperGluePretrainedNetwork.git
+	path = src/feature_matcher/models/SuperGluePretrainedNetwork
+	url = https://github.com/BumblebeeAS/SuperGluePretrainedNetwork.git
+[submodule "models/Coarse_LoFTR_TRT"]
+	path = src/feature_matcher/models/Coarse_LoFTR_TRT
+	url = https://github.com/Kolkir/Coarse_LoFTR_TRT.git
+[submodule "src/feature_matcher/models/QuadTreeAttention"]
+	path = src/feature_matcher/models/QuadTreeAttention
+	url = https://github.com/Tangshitao/QuadTreeAttention.git
