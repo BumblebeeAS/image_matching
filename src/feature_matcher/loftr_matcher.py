@@ -2,8 +2,11 @@ import os
 import sys
 from pathlib import Path
 from typing_extensions import override
-LoFTR_dir = os.path.abspath(Path(os.path.realpath(
-    __file__)).parents[0] / "models/QuadTreeAttention/FeatureMatching/src/")  # noqa E402
+
+LoFTR_dir = os.path.abspath(
+    Path(os.path.realpath(__file__)).parents[0]
+    / "models/QuadTreeAttention/FeatureMatching/src/"
+)  # noqa E402
 sys.path.append(LoFTR_dir)  # noqa E402
 
 from loftr import LoFTR, default_cfg
@@ -30,13 +33,12 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
         self.matcher = LoFTR(config=self.config)
 
         self.device = (
-            "cuda" if torch.cuda.is_available(
-            ) and self.config["cuda"] else "cpu"
+            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
         )
 
         # https://github.com/Tangshitao/QuadTreeAttention/releases/download/QuadTreeAttention_feature_match/outdoor.ckpt
-        weight_path = os.path.join(LoFTR_dir, 'weights', 'outdoor.ckpt')
-        matcher.load_state_dict(torch.load(weight_path)['state_dict'])
+        weight_path = os.path.join(LoFTR_dir, "weights", "outdoor.ckpt")
+        matcher.load_state_dict(torch.load(weight_path)["state_dict"])
         matcher = matcher.eval().to(device=self.device)
 
         self.img_size = (640, 480)
@@ -45,10 +47,14 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
     def preprocess_img(self, img):
         """Convert cropped image into form required by matcher."""
         img_tensor, scale, lxty = self.make_query_image(img)
-        img_tensor = torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+        img_tensor = (
+            torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+        )
         return (img_tensor, scale, lxty)
 
-    def compute_matches(self, num_keypoints: int = 20, template: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def compute_matches(
+        self, num_keypoints: int = 20, template: Optional[str] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         img0, img1 = self.get_images(template)
 
         if img0 is None or img1 is None:
@@ -59,15 +65,14 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
 
         with torch.no_grad():
             self.update_last_data
-            self.last_data = {
-                "image0": template_tensor, 'image1': other_tensor}
+            self.last_data = {"image0": template_tensor, "image1": other_tensor}
             self.matcher(self.last_data)
             conf_matrix = conf_matrix.cpu().numpy()
 
-            total_n_matches = len(self.last_data['mkpts0_f'])
-            mkpts0 = self.last_data['mkpts0_f'].cpu().numpy()
-            mkpts1 = self.last_data['mkpts1_f'].cpu().numpy()
-            mconf = self.last_data['mconf'].cpu().numpy()
+            total_n_matches = len(self.last_data["mkpts0_f"])
+            mkpts0 = self.last_data["mkpts0_f"].cpu().numpy()
+            mkpts1 = self.last_data["mkpts1_f"].cpu().numpy()
+            mconf = self.last_data["mconf"].cpu().numpy()
 
             # Normalize confidence.
             # if len(mconf) > 0:
@@ -96,7 +101,8 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
     def make_query_image(self, frame):
         query_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         query_img, scale, lxty = LoFTRMatchProducer.ratio_preserving_resize(
-            query_img, self.img_size)
+            query_img, self.img_size
+        )
         return query_img, scale, lxty
 
     def ratio_preserving_resize(image, img_size):
@@ -111,5 +117,5 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
         # center crop
         x = img_size[0] // 2 - new_size[0] // 2
         y = img_size[1] // 2 - new_size[1] // 2
-        result[y:y + image.shape[0], x:x + image.shape[1]] = image
+        result[y : y + image.shape[0], x : x + image.shape[1]] = image
         return result, scale_max, (x, y)

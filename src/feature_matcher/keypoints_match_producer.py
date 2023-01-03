@@ -9,14 +9,21 @@ import numpy as np
 import logging
 from feature_matcher.keypoints import Keypoints
 
-from feature_matcher.tools import create_show_image, plot_matches, time_func, white_balance
+from feature_matcher.tools import (
+    create_show_image,
+    plot_matches,
+    time_func,
+    white_balance,
+)
 
 
 T = TypeVar("T")
 
 
 class ImageWrapper(Generic[T]):
-    def __init__(self, id: Union[str, int], img: np.ndarray, lxtyrxby: Tuple[int] = None) -> None:
+    def __init__(
+        self, id: Union[str, int], img: np.ndarray, lxtyrxby: Tuple[int] = None
+    ) -> None:
         self.id = id
         self.img = img
         self.lxtyrxby = lxtyrxby
@@ -69,8 +76,7 @@ class Buffer(Generic[T]):
 class KeypointsMatchProducer(ABC):
     def __init__(self, config={}):
         self.debug = config.get("debug", False)
-        logging.basicConfig(
-            level=logging.DEBUG if self.debug else logging.INFO)
+        logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
 
         self.visualize_callbacks = []
         self.last_data = [None, None]
@@ -93,8 +99,9 @@ class KeypointsMatchProducer(ABC):
     def _preprocess(self, idx):
         self.buffer.lock.acquire()
         if isinstance(idx, str):
-            relevant = [self.buffer.templates[idx]
-                        ] if idx in self.buffer.templates else []
+            relevant = (
+                [self.buffer.templates[idx]] if idx in self.buffer.templates else []
+            )
         else:
             relevant = [x for x in self.buffer.images if x.id == idx]
         if len(relevant) != 1:
@@ -106,7 +113,7 @@ class KeypointsMatchProducer(ABC):
 
         bounds = relevant[0].lxtyrxby
         if bounds is not None:
-            img = img[bounds[1]:bounds[3], bounds[0]:bounds[2]]
+            img = img[bounds[1] : bounds[3], bounds[0] : bounds[2]]
         preprocessed = self.preprocess_img(img)
 
         self.buffer.lock.acquire()
@@ -120,7 +127,7 @@ class KeypointsMatchProducer(ABC):
 
     def get_images(self, name=None) -> Tuple[ImageWrapper, ImageWrapper]:
         """if name is not None, get the template image and the first image in the buffer.
-           else, get both images in the buffer.
+        else, get both images in the buffer.
         """
         self.buffer.lock.acquire()
         image0, image1 = None, None
@@ -184,7 +191,9 @@ class KeypointsMatchProducer(ABC):
         return 0
 
     @abstractmethod
-    def compute_matches(self, num_keypoints=20, template=None) -> Tuple[Keypoints, Keypoints]:
+    def compute_matches(
+        self, num_keypoints=20, template=None
+    ) -> Tuple[Keypoints, Keypoints]:
         """
         if template is None, match the first 2 images in buffer
         Else, match the last image in buffer with the template
@@ -197,26 +206,44 @@ class KeypointsMatchProducer(ABC):
         """
 
     @staticmethod
-    def draw_keypoints(image1: np.ndarray, image2: np.ndarray, keypoints1: np.ndarray, keypoints2: np.ndarray,
-                       color: tuple = (0, 255, 0)):
+    def draw_keypoints(
+        image1: np.ndarray,
+        image2: np.ndarray,
+        keypoints1: np.ndarray,
+        keypoints2: np.ndarray,
+        color: tuple = (0, 255, 0),
+    ):
         assert len(keypoints1) == len(keypoints2)
         # concatenate the images along their widths.
         w = image1.shape[1] + image2.shape[1]
         h = max(image1.shape[0], image2.shape[0])
         image = np.zeros((h, w, 3), dtype=np.uint8)
-        image[:image1.shape[0], :image1.shape[1], :] = image1
-        image[:image2.shape[0], image1.shape[1]:, :] = image2
+        image[: image1.shape[0], : image1.shape[1], :] = image1
+        image[: image2.shape[0], image1.shape[1] :, :] = image2
         _keypoints2 = copy.deepcopy(keypoints2)
         _keypoints2.keypoints[:, 0] += float(image1.shape[1])
 
         # draw the keypoint matches.
         for i, keypoint1 in enumerate(keypoints1.keypoints):
             keypoint2 = _keypoints2.keypoints[i]
-            image = cv2.line(img=image, pt1=tuple(keypoint1[:2].astype(int)),
-                             pt2=tuple(keypoint2[:2].astype(int)), thickness=1, color=color)
+            image = cv2.line(
+                img=image,
+                pt1=tuple(keypoint1[:2].astype(int)),
+                pt2=tuple(keypoint2[:2].astype(int)),
+                thickness=1,
+                color=color,
+            )
         return image
 
-    def process_image(self, img=None, template: Optional[str] = None, debug=False, num_keypoints=20, lxtyrxby=None, logger=None):
+    def process_image(
+        self,
+        img=None,
+        template: Optional[str] = None,
+        debug=False,
+        num_keypoints=20,
+        lxtyrxby=None,
+        logger=None,
+    ):
         """
         Args:
             img: image to process
@@ -238,8 +265,9 @@ class KeypointsMatchProducer(ABC):
             return None, None
         if debug:
             img1, img2 = self.get_images(template)
-            img = plot_matches(img1.img, img2.img,
-                               kp1.keypoints, kp2.keypoints, kp1.scores)
+            img = plot_matches(
+                img1.img, img2.img, kp1.keypoints, kp2.keypoints, kp1.scores
+            )
             self.visualize(img)
         self.buffer.lock.acquire()
         self.buffer.images.pop(0)
@@ -247,57 +275,78 @@ class KeypointsMatchProducer(ABC):
         return kp1, kp2
 
 
-def get_keypoints_match_producer(extractor=None, matcher="superglue", extractor_config={}, matcher_config={"debug": False}):
-    valid_combinations = [("superpoint", "superglue"),
-                          ("orb", "bf"), ("sift", "bf"), ("fast",
-                                                          "bf"), ("superpoint", "bf"),
-                          ("sift", "flann"), ("fast",
-                                              "flann"), ("superpoint", "flann"),
-                          (None, "loftr"), (None, "coarse_loftr")]
+def get_keypoints_match_producer(
+    extractor=None,
+    matcher="superglue",
+    extractor_config={},
+    matcher_config={"debug": False},
+):
+    valid_combinations = [
+        ("superpoint", "superglue"),
+        ("orb", "bf"),
+        ("sift", "bf"),
+        ("fast", "bf"),
+        ("superpoint", "bf"),
+        ("sift", "flann"),
+        ("fast", "flann"),
+        ("superpoint", "flann"),
+        (None, "loftr"),
+        (None, "coarse_loftr"),
+    ]
     if not (extractor, matcher) in valid_combinations:
         raise ValueError(
-            f"Invalid combination of extractor and matcher: {extractor}, {matcher}")
+            f"Invalid combination of extractor and matcher: {extractor}, {matcher}"
+        )
 
     # Feature extractors:
 
     def get_superpoint(config):
         from feature_matcher.keypoint_producer import SuperPointKeypointProducer
+
         return SuperPointKeypointProducer(config)
 
     def get_orb(config):
         from feature_matcher.keypoint_producer import OrbKeypointProducer
+
         return OrbKeypointProducer(config)
 
     def get_sift(config):
         from feature_matcher.keypoint_producer import SiftKeypointProducer
+
         return SiftKeypointProducer(config)
 
     def get_fast(config):
         from feature_matcher.keypoint_producer import FastKeypointProducer
+
         return FastKeypointProducer(config)
 
     # Feature matchers:
 
     def get_bf(config):
         from feature_matcher.keypoint_matcher.bf import BFKeypointMatcher
+
         return BFKeypointMatcher(config)
 
     def get_flann(config):
         from feature_matcher.keypoint_matcher.flann import FlannKeypointMatcher
+
         return FlannKeypointMatcher(config)
 
     def get_superglue(config):
         from feature_matcher.keypoint_matcher.superglue import SuperglueKeypointMatcher
+
         return SuperglueKeypointMatcher(config)
 
     # extractor + matchers:
 
     def get_loftr(config):
         from feature_matcher.loftr_matcher import LoFTRMatchProducer
+
         return LoFTRMatchProducer(config)
 
     def get_coarse_loftr(config):
         from feature_matcher.coarse_loftr_matcher import Coarse_LoFTRMatchProducer
+
         return Coarse_LoFTRMatchProducer(config)
 
     extractors = {
@@ -306,15 +355,8 @@ def get_keypoints_match_producer(extractor=None, matcher="superglue", extractor_
         "sift": get_sift,
         "fast": get_fast,
     }
-    matchers = {
-        "superglue": get_superglue,
-        "bf": get_bf,
-        "flann": get_flann
-    }
-    extractor_matcher = {
-        "loftr": get_loftr,
-        "coarse_loftr": get_coarse_loftr
-    }
+    matchers = {"superglue": get_superglue, "bf": get_bf, "flann": get_flann}
+    extractor_matcher = {"loftr": get_loftr, "coarse_loftr": get_coarse_loftr}
 
     if extractor is not None and extractor in extractors:
         extractor = extractors[extractor](extractor_config)
@@ -323,6 +365,7 @@ def get_keypoints_match_producer(extractor=None, matcher="superglue", extractor_
 
     if extractor is not None:
         from feature_matcher.two_stage_match_producer import TwoStageMatchProducer
+
         return TwoStageMatchProducer(extractor, matcher)
     else:
         matcher = extractor_matcher[matcher](matcher_config)
@@ -332,6 +375,7 @@ def get_keypoints_match_producer(extractor=None, matcher="superglue", extractor_
 
 if __name__ == "__main__":
     import os
+
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"
     # bboxes_file = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/tommygun_gt.csv"
     folder_path = "/home/developer/workspace/src/rosbags/bootlegger_torpedo_sim1_2022-12-26-18-25-31/Images"
@@ -346,7 +390,9 @@ if __name__ == "__main__":
         # "fast": get_keypoints_match_producer("fast", "bf", {"debug": True}, {"debug": True}),
         # # 0.2101211615s
         # "superpoint": get_keypoints_match_producer("superpoint", "superglue", {"debug": True}, {"debug": True}),
-        "superpoint": get_keypoints_match_producer("superpoint", "bf", {"debug": True}, {"debug": True}),
+        "superpoint": get_keypoints_match_producer(
+            "superpoint", "bf", {"debug": True}, {"debug": True}
+        ),
         # "superpoint": get_keypoints_match_producer("superpoint", "flann", {"debug": True}, {"debug": True}),
         # # 0.0883604178s
         # "coarse_loftr": get_keypoints_match_producer(None, "coarse_loftr", {"debug": True}, {"debug": True}),
@@ -354,7 +400,8 @@ if __name__ == "__main__":
     }
     for key, image_match_producer in image_match_producers.items():
         image_match_producer.visualize_callbacks.append(
-            create_show_image(image_match_producer.__class__.__name__))
+            create_show_image(image_match_producer.__class__.__name__)
+        )
 
         templates = {
             "Tommy Gun": "/home/developer/workspace/src/image_matching/templates/Tommy Gun.jpeg",
@@ -370,14 +417,20 @@ if __name__ == "__main__":
             try:
                 x, y, w, h = [int(_) for _ in bboxes[i]]
                 img = cv2.imread(f"{folder_path}/{file}")
-                lxtyrxby = (max(0, x-PADDING), max(0, y-PADDING),
-                            min(img.shape[1], x+w+PADDING), min(img.shape[0], y+h+PADDING))
+                lxtyrxby = (
+                    max(0, x - PADDING),
+                    max(0, y - PADDING),
+                    min(img.shape[1], x + w + PADDING),
+                    min(img.shape[0], y + h + PADDING),
+                )
 
                 if not CROP_IMAGES:
                     lxtyrxby = None
 
                 # matching against bootlegger template
-                kp1, kp2 = image_match_producer.process_image(img, "Bootlegger", lxtyrxby=lxtyrxby, debug=True)
+                kp1, kp2 = image_match_producer.process_image(
+                    img, "Bootlegger", lxtyrxby=lxtyrxby, debug=True
+                )
 
                 # For matching between consecutive images
                 # kp1, kp2 = image_match_producer.process_image(img, None, debug=True)

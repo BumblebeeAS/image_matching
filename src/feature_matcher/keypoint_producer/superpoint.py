@@ -1,8 +1,10 @@
 import os
 import sys
 from pathlib import Path
-SuperGlue_dir = os.path.abspath(Path(os.path.realpath(
-    __file__)).parents[1] / "models/SuperGluePretrainedNetwork")  # noqa E402
+
+SuperGlue_dir = os.path.abspath(
+    Path(os.path.realpath(__file__)).parents[1] / "models/SuperGluePretrainedNetwork"
+)  # noqa E402
 sys.path.insert(0, SuperGlue_dir)  # noqa E402
 from feature_matcher.tools import image2tensor
 from feature_matcher.two_stage_match_producer import KeypointProducer
@@ -21,22 +23,20 @@ class SuperPointKeypointProducer(KeypointProducer):
         "keypoint_threshold": 0.005,
         "max_keypoints": -1,
         "remove_borders": 4,
-        "path": os.path.join(SuperGlue_dir, 'models', 'weights', 'superpoint_v1.pth'),
+        "path": os.path.join(SuperGlue_dir, "models", "weights", "superpoint_v1.pth"),
         "cuda": True,
     }
 
     def __init__(self, config={}):
         self.debug = config.get("debug", False)
-        logging.basicConfig(
-            level=logging.DEBUG if self.debug else logging.INFO)
+        logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
 
         self.config = {**SuperPointKeypointProducer.default_config, **config}
         logging.info("SuperPoint detector config: ")
         logging.info(self.config)
 
         self.device = (
-            "cuda" if torch.cuda.is_available(
-            ) and self.config["cuda"] else "cpu"
+            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
         )
         path_ = self.config["path"]
         parent_dir = os.path.dirname(path_)
@@ -73,8 +73,9 @@ class SuperPointKeypointProducer(KeypointProducer):
         """
         with torch.no_grad():
             pred = self.superpoint(self.preprocess(image))
-        return Keypoints(image.shape[:2],
-                         pred["keypoints"][0].cpu().detach().numpy(),
-                         pred["descriptors"][0].cpu(
-        ).detach().numpy().transpose(),
-            pred["scores"][0].cpu().detach().numpy())
+        return Keypoints(
+            image.shape[:2],
+            pred["keypoints"][0].cpu().detach().numpy(),
+            pred["descriptors"][0].cpu().detach().numpy().transpose(),
+            pred["scores"][0].cpu().detach().numpy(),
+        )
