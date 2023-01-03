@@ -22,7 +22,7 @@ class OrbKeypointProducer(KeypointProducer):
 
     def __call__(self, image: np.ndarray) -> Keypoints:
         """
-        Finds keypoints within image using SIFT.
+        Finds keypoints within image using ORB.
 
         Args:
             image: numpy array of image
