@@ -1,25 +1,23 @@
-from copy import copy
 import logging
-import time
+import os
+from pathlib import Path
+from typing import Optional, Tuple
+
+import cv2
+import numpy as np
+import torch
 from typing_extensions import override
+
+from feature_matcher.keypoints import Keypoints
+from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
+from feature_matcher.models.Coarse_LoFTR_TRT.loftr import LoFTR
+from feature_matcher.models.Coarse_LoFTR_TRT.loftr.utils.cvpr_ds_config import (
+    default_cfg,
+)
 from feature_matcher.models.Coarse_LoFTR_TRT.utils import (
     get_coarse_match,
     make_student_config,
 )
-from feature_matcher.models.Coarse_LoFTR_TRT.loftr.utils.cvpr_ds_config import (
-    default_cfg,
-)
-from feature_matcher.models.Coarse_LoFTR_TRT.loftr import LoFTR
-from typing import Optional, Tuple
-import cv2
-import numpy as np
-from feature_matcher.keypoints import Keypoints
-from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
-import torch
-import os
-from pathlib import Path
-
-from feature_matcher.tools import time_func
 
 LOFTR_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0] / "models/Coarse_LoFTR_TRT"

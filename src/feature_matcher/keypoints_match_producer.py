@@ -1,21 +1,18 @@
-from abc import ABC, abstractmethod
 import copy
+import logging
+from abc import ABC, abstractmethod
 from threading import Lock, Thread
-import time
-from typing import Any, Deque, Dict, Generic, List, Optional, Tuple, TypeVar, Union
-from collections import deque
+from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
+
 import cv2
 import numpy as np
-import logging
-from feature_matcher.keypoints import Keypoints
 
+from feature_matcher.keypoints import Keypoints
 from feature_matcher.tools import (
     create_show_image,
     plot_matches,
-    time_func,
     white_balance,
 )
-
 
 T = TypeVar("T")
 

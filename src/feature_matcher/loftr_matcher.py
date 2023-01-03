@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+
 from typing_extensions import override
 
 LoFTR_dir = os.path.abspath(
@@ -9,13 +10,15 @@ LoFTR_dir = os.path.abspath(
 )  # noqa E402
 sys.path.append(LoFTR_dir)  # noqa E402
 
-from loftr import LoFTR, default_cfg
 from typing import Optional, Tuple
+
 import cv2
 import numpy as np
+import torch
+from loftr import LoFTR, default_cfg
+
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
-import torch
 
 # Requires CUDA.
 # Download weights from github: `https://github.com/Tangshitao/QuadTreeAttention/releases/download/QuadTreeAttention_feature_match/outdoor.ckpt`

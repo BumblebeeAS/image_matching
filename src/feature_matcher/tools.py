@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
+import logging
 from time import time
+
 import cv2
+import matplotlib.cm as cm
 import numpy as np
 import torch
-import logging
-
-import matplotlib.cm as cm
 
 
 def image2tensor(frame, device):

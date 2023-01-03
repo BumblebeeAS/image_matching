@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import Dict
 
 import torch
@@ -7,8 +8,6 @@ import torch
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.models.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 from feature_matcher.two_stage_match_producer import KeypointMatcher
-
-from pathlib import Path
 
 SuperGlue_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0] / "models/SuperGluePretrainedNetwork"
