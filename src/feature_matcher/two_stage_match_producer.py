@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
+
 from typing_extensions import override
+
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 

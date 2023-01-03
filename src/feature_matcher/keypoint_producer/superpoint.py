@@ -6,14 +6,16 @@ SuperGlue_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[1] / "models/SuperGluePretrainedNetwork"
 )  # noqa E402
 sys.path.insert(0, SuperGlue_dir)  # noqa E402
+import logging
+
+import cv2
+import numpy as np
+import torch
+from models.superpoint import SuperPoint
+
+from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.tools import image2tensor
 from feature_matcher.two_stage_match_producer import KeypointProducer
-from feature_matcher.keypoints_match_producer import Keypoints
-from models.superpoint import SuperPoint
-import torch
-import numpy as np
-import cv2
-import logging
 
 
 class SuperPointKeypointProducer(KeypointProducer):

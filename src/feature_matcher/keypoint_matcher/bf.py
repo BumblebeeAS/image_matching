@@ -1,5 +1,6 @@
-import cv2
 from typing import Tuple
+
+import cv2
 
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher

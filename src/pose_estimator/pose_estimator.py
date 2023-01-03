@@ -1,19 +1,17 @@
-from enum import Enum
 import logging
+
 import cv2
+import numpy as np
+
 from feature_matcher.keypoints_match_producer import (
     KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
 from feature_matcher.tools import (
-    create_save_image,
     create_show_image,
     plot_matches,
-    time_func,
 )
-
 from pose_estimator.PinholeCamera import PinholeCamera
-import numpy as np
 
 
 class PoseEstimator:
