@@ -1,32 +1,37 @@
 #!/usr/bin/env python3
 import json
-import numpy as np
+import os
+from typing import Callable, Dict, List, Tuple, Union
 
 import cv2
-import os
-
-from rospkg import RosPack
-from feature_matcher.keypoints import Keypoints
-from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
-from feature_matcher.tools import create_save_image
-from bb_msgs.msg import DetectedObjects
-
+import numpy as np
 import rospy
+from bb_msgs.msg import DetectedObjects
 from cv_bridge import CvBridge
-
-from typing import Callable, List, Dict, Tuple, Union
-
-from sensor_msgs.msg import CompressedImage
 from image_matching.msg import Keypoint, KeypointsDict
-from image_matching.srv import RegisterImage, RegisterImageRequest, RegisterImageResponse
-from image_matching.srv import ClearBuffer, ClearBufferRequest, ClearBufferResponse
-from image_matching.srv import MatchImages, MatchImagesRequest, MatchImagesResponse
 from image_matching.srv import (
+    ClearBuffer,
+    ClearBufferRequest,
+    ClearBufferResponse,
+    MatchImages,
+    MatchImagesRequest,
+    MatchImagesResponse,
     MatchToTemplate,
     MatchToTemplateRequest,
     MatchToTemplateResponse,
+    RegisterImage,
+    RegisterImageRequest,
+    RegisterImageResponse,
 )
-from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
+from rospkg import RosPack
+from sensor_msgs.msg import CompressedImage
+
+from feature_matcher.keypoints import Keypoints
+from feature_matcher.keypoints_match_producer import (
+    KeypointsMatchProducer,
+    get_keypoints_match_producer,
+)
+from feature_matcher.tools import create_save_image
 
 
 class MatcherNode:
@@ -50,8 +55,11 @@ class MatcherNode:
         self.detector_config = detector_config
         self.matcher_config = matcher_config
 
-        self.image_match_producer: KeypointsMatchProducer = get_keypoints_match_producer(
-            detector_name, matcher_name, self.detector_config, self.matcher_config)  # 0.1275215585s
+        self.image_match_producer: KeypointsMatchProducer = (
+            get_keypoints_match_producer(
+                detector_name, matcher_name, self.detector_config, self.matcher_config
+            )
+        )  # 0.1275215585s
 
         self.path = os.path.abspath(RosPack().get_path("image_matching"))
 
@@ -61,10 +69,13 @@ class MatcherNode:
             if not os.path.isdir(self.debug_path):
                 os.mkdir(self.debug_path)
             self.image_match_producer.visualize_callbacks.append(
-                create_save_image(os.path.join(self.debug_path, "debug_matches_py.jpg")))
+                create_save_image(os.path.join(self.debug_path, "debug_matches_py.jpg"))
+            )
 
         template_path = os.path.join(self.path, "templates")
-        templates = json.loads(open(os.path.join(template_path, "templates.json")).read())
+        templates = json.loads(
+            open(os.path.join(template_path, "templates.json")).read()
+        )
         for filename, _ in templates.items():
             name = ".".join(filename.split(".")[:-1])
             self.image_match_producer.register_template(
@@ -99,7 +110,9 @@ class MatcherNode:
             pass
         try:
             self.services.append(
-                rospy.Service("matchToTemplate", MatchToTemplate, self.match_to_template)
+                rospy.Service(
+                    "matchToTemplate", MatchToTemplate, self.match_to_template
+                )
             )
         except rospy.service.ServiceException:
             pass
@@ -143,7 +156,11 @@ class MatcherNode:
                 except rospy.ROSException:
                     continue
                 if any([x.name == object_name for x in detected_objects.detected]):
-                    detected_object = sorted(detected_objects.detected, key=lambda x: x.extra[0], reverse=True)[0]
+                    detected_object = sorted(
+                        detected_objects.detected,
+                        key=lambda x: x.extra[0],
+                        reverse=True,
+                    )[0]
                     break
         img: CompressedImage = rospy.wait_for_message(
             topic_name, CompressedImage, timeout=2
@@ -151,16 +168,23 @@ class MatcherNode:
         cv2_img: np.ndarray = self.bridge.compressed_imgmsg_to_cv2(img)
         if detected_object is not None:
             PADDING = 10
-            cx, cy, w, h = detected_object.centre_x, detected_object.centre_y, detected_object.width, detected_object.height
+            cx, cy, w, h = (
+                detected_object.centre_x,
+                detected_object.centre_y,
+                detected_object.width,
+                detected_object.height,
+            )
             x, y = int(cx - w / 2), int(cy - h / 2)
-            cv2_img = cv2_img[y-PADDING:y+h+PADDING, x-PADDING:x+w+PADDING, :]
+            cv2_img = cv2_img[
+                y - PADDING : y + h + PADDING, x - PADDING : x + w + PADDING, :
+            ]
         cv2.imwrite(
             os.path.join(self.debug_path, f"current_{len(self.buffer) % 2}.jpg"),
             cv2_img,
         )
         return self.image_match_producer.add_image(cv2_img)
 
-    def clear_buffer(self, _: ClearBufferRequest=None) -> ClearBufferResponse:
+    def clear_buffer(self, _: ClearBufferRequest = None) -> ClearBufferResponse:
         return self.image_match_producer.clear_buffer()
 
     def match_images(self, request: MatchImagesRequest) -> MatchImagesResponse:
@@ -170,7 +194,9 @@ class MatcherNode:
             resp.result = 1
             return resp
 
-        results = self.image_match_producer.process_image(num_keypoints=num_keypoints, template=None)
+        results = self.image_match_producer.process_image(
+            num_keypoints=num_keypoints, template=None
+        )
 
         return self._to_correct_format(results, lambda: MatchImagesResponse())  # type: ignore
 
@@ -183,12 +209,16 @@ class MatcherNode:
         print(num_keypoints)
         print(template_name)
 
-        if num_keypoints <= 0 or not self.image_match_producer.has_template(template_name):
+        if num_keypoints <= 0 or not self.image_match_producer.has_template(
+            template_name
+        ):
             resp = MatchToTemplateResponse()
             resp.result = 1
             return resp
 
-        results = self.image_match_producer.process_image(num_keypoints=num_keypoints, template=template_name)
+        results = self.image_match_producer.process_image(
+            num_keypoints=num_keypoints, template=template_name
+        )
 
         return self._to_correct_format(results, lambda: MatchToTemplateResponse())  # type: ignore
 
@@ -196,9 +226,13 @@ class MatcherNode:
         debug_state = self.debug
         self.debug = False
 
-        self.image_match_producer.add_image((np.random.rand(720, 640, 3) * 255).astype(np.uint8))
+        self.image_match_producer.add_image(
+            (np.random.rand(720, 640, 3) * 255).astype(np.uint8)
+        )
         for _ in range(10):
-            self.image_match_producer.add_image((np.random.rand(720, 640, 3) * 255).astype(np.uint8))
+            self.image_match_producer.add_image(
+                (np.random.rand(720, 640, 3) * 255).astype(np.uint8)
+            )
             self.image_match_producer.compute_matches()
         self.image_match_producer.clear_buffer()
         self.debug = debug_state
