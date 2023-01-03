@@ -1,7 +1,7 @@
-[submodule "models/SuperGluePretrainedNetwork"]
+[submodule "src/feature_matcher/models/SuperGluePretrainedNetwork"]
 	path = src/feature_matcher/models/SuperGluePretrainedNetwork
 	url = https://github.com/BumblebeeAS/SuperGluePretrainedNetwork.git
-[submodule "models/Coarse_LoFTR_TRT"]
+[submodule "src/feature_matcher/models/Coarse_LoFTR_TRT"]
 	path = src/feature_matcher/models/Coarse_LoFTR_TRT
 	url = https://github.com/Kolkir/Coarse_LoFTR_TRT.git
 [submodule "src/feature_matcher/models/QuadTreeAttention"]
