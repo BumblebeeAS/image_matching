@@ -66,7 +66,7 @@ class BasicFeatureMatcher:
 if __name__ == "__main__":
     rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
     camera_topic = rospy.get_param("~camera_topic", "/auv4/front_cam/image_color/compressed")
-    visualization_topic = rospy.get_param("~visualization_topic", "/visualization")
+    visualization_topic = rospy.get_param("~visualization_topic", "/visualization/compressed")
     template = rospy.get_param("~template", "Bootlegger")
     template_path = rospy.get_param("~template_path", os.path.abspath(Path(RosPack().get_path("image_matching"))/"templates"/f"{template}.jpeg"))
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
