@@ -7,3 +7,6 @@
 [submodule "src/feature_matcher/models/QuadTreeAttention"]
 	path = src/feature_matcher/models/QuadTreeAttention
 	url = https://github.com/Tangshitao/QuadTreeAttention.git
+[submodule "src/feature_matcher/models/ALIKE"]
+	path = src/feature_matcher/models/ALIKE
+	url = git@github.com:Shiaoming/ALIKE.git
