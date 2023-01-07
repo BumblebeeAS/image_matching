@@ -8,11 +8,7 @@ import cv2
 import numpy as np
 
 from feature_matcher.keypoints import Keypoints
-from feature_matcher.tools import (
-    create_show_image,
-    plot_matches,
-    white_balance,
-)
+from feature_matcher.tools import create_show_image, plot_matches, white_balance
 
 T = TypeVar("T")
 
@@ -283,6 +279,9 @@ def get_keypoints_match_producer(
         ("superpoint", "superglue"),
         ("superpoint", "bf"),
         ("superpoint", "flann"),
+        # ALIKE detectors
+        ("alike", "bf"),
+        ("alike", "flann"),
         # ORB detectors
         ("orb", "bf"),
         # SIFT detectors
@@ -322,6 +321,11 @@ def get_keypoints_match_producer(
 
         return FastKeypointProducer(config)
 
+    def get_alike(config):
+        from feature_matcher.keypoint_producer import AlikeKeypointProducer
+
+        return AlikeKeypointProducer(config)
+
     # Feature matchers:
 
     def get_bf(config):
@@ -356,6 +360,7 @@ def get_keypoints_match_producer(
         "orb": get_orb,
         "sift": get_sift,
         "fast": get_fast,
+        "alike": get_alike,
     }
     matchers = {"superglue": get_superglue, "bf": get_bf, "flann": get_flann}
     extractor_matcher = {"loftr": get_loftr, "coarse_loftr": get_coarse_loftr}
@@ -392,22 +397,26 @@ if __name__ == "__main__":
         # "fast": get_keypoints_match_producer("fast", "bf", {"debug": True}, {"debug": True}),
         # # 0.2101211615s
         # "superpoint": get_keypoints_match_producer("superpoint", "superglue", {"debug": True}, {"debug": True}),
-        "superpoint": get_keypoints_match_producer(
-            "superpoint", "bf", {"debug": True}, {"debug": True}
-        ),
+        # "superpoint": get_keypoints_match_producer("superpoint", "bf", {"debug": True}, {"debug": True}),
         # "superpoint": get_keypoints_match_producer("superpoint", "flann", {"debug": True}, {"debug": True}),
         # # 0.0883604178s
         # "coarse_loftr": get_keypoints_match_producer(None, "coarse_loftr", {"debug": True}, {"debug": True}),
         # "loftr": get_keypoints_match_producer(None, "loftr", {"debug": True}, {"debug": True}),
+        "alike": get_keypoints_match_producer(
+            "alike", "bf", {"debug": True}, {"debug": True}
+        ),
     }
     for key, image_match_producer in image_match_producers.items():
         image_match_producer.visualize_callbacks.append(
             create_show_image(image_match_producer.__class__.__name__)
         )
 
+        templates_dir = os.path.join(
+            os.path.realpath(__file__), "..", "..", "templates"
+        )
         templates = {
-            "Tommy Gun": "/home/developer/workspace/src/image_matching/templates/Tommy Gun.jpeg",
-            "Bootlegger": "/home/developer/workspace/src/image_matching/templates/Bootlegger.jpeg",
+            "Tommy Gun": os.path.join(templates_dir, "Tommy Gun.jpeg"),
+            "Bootlegger": os.path.join(templates_dir, "Bootlegger.jpeg"),
         }
         for key, value in templates.items():
             image_match_producer.register_template(key, cv2.imread(value))
