@@ -73,6 +73,7 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
         indices = indices[:num_keypoints]
         mkpts0 = mkpts0[indices, :]
         mkpts1 = mkpts1[indices, :]
+        mconf = mconf[indices]
 
         # get keypoints corresponding to non-cropped image
         mkpts0[:, :2] = (mkpts0[:, :2] - np.array(template_lxty)) / template_scale
