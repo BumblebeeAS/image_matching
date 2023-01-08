@@ -382,6 +382,7 @@ def get_keypoints_match_producer(
 
 if __name__ == "__main__":
     import os
+    from pathlib import Path
 
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"
     # bboxes_file = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/tommygun_gt.csv"
@@ -411,8 +412,8 @@ if __name__ == "__main__":
             create_show_image(image_match_producer.__class__.__name__)
         )
 
-        templates_dir = os.path.join(
-            os.path.realpath(__file__), "..", "..", "templates"
+        templates_dir = os.path.abspath(
+            Path(os.path.realpath(__file__)).parents[2] / "templates"
         )
         templates = {
             "Tommy Gun": os.path.join(templates_dir, "Tommy Gun.jpeg"),
