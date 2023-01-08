@@ -279,14 +279,19 @@ def get_keypoints_match_producer(
     matcher_config={"debug": False},
 ):
     valid_combinations = [
+        # SuperPoint detectors
         ("superpoint", "superglue"),
-        ("orb", "bf"),
-        ("sift", "bf"),
-        ("fast", "bf"),
         ("superpoint", "bf"),
-        ("sift", "flann"),
-        ("fast", "flann"),
         ("superpoint", "flann"),
+        # ORB detectors
+        ("orb", "bf"),
+        # SIFT detectors
+        ("sift", "bf"),
+        ("sift", "flann"),
+        # FAST detectors
+        ("fast", "bf"),
+        ("fast", "flann"),
+        # Detector-free matchers
         (None, "loftr"),
         (None, "coarse_loftr"),
     ]
