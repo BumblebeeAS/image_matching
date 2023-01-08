@@ -9,6 +9,7 @@ import numpy as np
 
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.tools import create_show_image, plot_matches, white_balance
+from utils.logging import Logger
 
 T = TypeVar("T")
 
@@ -53,6 +54,12 @@ class Buffer(Generic[T]):
         if isinstance(x.id, int):
             self.images.append(x)
         self.lock.release()
+
+    def pop(self, idx: int) -> ImageWrapper[T]:
+        self.lock.acquire()
+        image = self.images.pop(idx)
+        self.lock.release()
+        return image
 
     def clear(self) -> None:
         self.lock.acquire()
@@ -235,7 +242,7 @@ class KeypointsMatchProducer(ABC):
         debug=False,
         num_keypoints=20,
         lxtyrxby=None,
-        logger=None,
+        logger: Optional[Logger] = None,
     ):
         """
         Args:
