@@ -27,13 +27,16 @@ LOFTR_dir = os.path.abspath(
 class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
     NUM_MATCHES = 20
 
-    def __init__(self, config={}):
+    def __init__(self, config={"cuda": True}):
         super(Coarse_LoFTRMatchProducer, self).__init__(config)
         model_cfg = make_student_config(default_cfg)
         self.loftr_coarse_resolution = model_cfg["resolution"][0]
         self.img_size = (model_cfg["input_width"], model_cfg["input_height"])
         self.matcher = LoFTR(config=model_cfg)
-        self.device = torch.device("cpu")
+
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() and config.get("cuda", False) else "cpu"
+        )
         checkpoint = torch.load(
             os.path.join(LOFTR_dir, "weights", "LoFTR_teacher.pt"),
             map_location=self.device,
