@@ -7,7 +7,7 @@ import cv2
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from scipy.spatial.transform import Rotation
-from sensor_msgs.msg import CompressedImage, Imu
+from sensor_msgs.msg import CompressedImage, Imu, CameraInfo
 
 from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
 from pose_estimator.PinholeCamera import PINHOLE_CAMERAS, PinholeCamera
@@ -172,7 +172,12 @@ class BasicVisualOdometry:
         self.logger.info(f"Time to produce IMU message: {end_time - start_time}")
 
         # Publish IMU message
-        self.imu_pub.publish(imu_msg)
+        # print(imu_msg)
+        try:
+            self.imu_pub.publish(imu_msg)
+        except Exception as e:
+            self.logger.error(f"Could not publish IMU message: {e}")
+            self.logger.error(traceback.format_exc())
 
         # Debug: Print RPY and translation
         R_deg = Rotation.from_matrix(R).as_euler("zyx", degrees=True)
@@ -206,7 +211,10 @@ if __name__ == "__main__":
     imu_topic = rospy.get_param("~imu_topic", "/auv4/visual_odometry/imu")
     imu_frame = rospy.get_param("~imu_frame", "auv4/front_cam")
 
-    camera_info = None
+    camera_info = rospy.wait_for_message(camera_info_topic, CameraInfo, 10)
+    if camera_info is None:
+        print("Time out! Using sim camera info")
+
     pose_estimator = BasicVisualOdometry(
         camera_topic,
         visualization_topic,
