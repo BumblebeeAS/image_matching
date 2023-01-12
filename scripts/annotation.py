@@ -51,8 +51,22 @@ class annotator(BasicFeatureMatcher):
         dst = self.convertToRect(dst)
 
         img2 = cv2.polylines(img, [np.int32(dst)], True, (0,255,0),3, cv2.LINE_AA)
-        if not cv2.imwrite(f"/home/rrkg/bbauv/images/Image_{img_msg.header.seq}.jpg", img2):
+
+        #Write to path
+        annotation_path = os.path.abspath(Path(RosPack().get_path("image_matching"))/"images")
+
+        if not (os.path.exists(annotation_path)):
+            os.mkdir(annotation_path)
+
+        if not cv2.imwrite("{}/id_{}.jpg".format(annotation_path, img_msg.header.seq), img):
             raise Exception("Could not write image")
+
+        with open(os.path.join(annotation_path,"_label.txt"), "a") as f:
+            temp_pts = np.reshape(dst,(4,2))
+            min_x, min_y = np.amin(temp_pts, axis=0)
+            w,h = abs(np.amax(temp_pts, axis=0) - (min_x, min_y))
+            f.write("id_{} {} {} {} {} {}\n".format(img_msg.header.seq, min_x, min_y, w, h, template))
+            f.close()
 
 if __name__ == "__main__":
     rospy.init_node("basic_bounding_box", anonymous=True, log_level=rospy.DEBUG)
