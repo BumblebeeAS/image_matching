@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
+import logging
 from time import time
+
 import cv2
+import matplotlib.cm as cm
 import numpy as np
 import torch
-import logging
-
-import matplotlib.cm as cm
 
 
 def image2tensor(frame, device):
     return torch.from_numpy(frame / 255.0).float()[None, None].to(device)
+
 
 def white_balance(img):
     result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -25,17 +26,23 @@ def white_balance(img):
     result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
     return result
 
+
 def create_show_image(window_name="image"):
     cv2.namedWindow(window_name, cv2.WINDOW_GUI_EXPANDED)
+
     def show_image(img):
         cv2.imshow(window_name, img)
         cv2.waitKey(1)
+
     return show_image
+
 
 def create_save_image(filename="matched_image.png"):
     def save_image(img):
         cv2.imwrite(filename, img)
+
     return save_image
+
 
 def time_func(name=None):
     def time_func_decorator(func):
@@ -54,13 +61,17 @@ def time_func(name=None):
             t2 = time()
             total_time += t2 - t1
             count += 1
-            if kwargs.get('debug', False):
+            if kwargs.get("debug", False):
                 if count % 10 == 0:
                     logging.info(
-                        f'Function {name!r} executed in {(total_time / count):.10f}s')
+                        f"Function {name!r} executed in {(total_time / count):.10f}s"
+                    )
             return result
+
         return wrap_func
+
     return time_func_decorator
+
 
 # --- VISUALIZATION ---
 # based on: https://github.com/magicleap/SuperGluePretrainedNetwork/blob/master/models/utils.py

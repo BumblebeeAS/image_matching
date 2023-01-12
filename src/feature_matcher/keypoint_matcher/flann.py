@@ -1,5 +1,7 @@
-import cv2
 from typing import Tuple
+
+import cv2
+import numpy as np
 
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
@@ -7,8 +9,7 @@ from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 class FlannKeypointMatcher(KeypointMatcher):
     def __init__(self, config={"cross_check": False, "num_matches": 20}):
-        self.matcher = cv2.DescriptorMatcher_create(
-            cv2.DescriptorMatcher_FLANNBASED)
+        self.matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
 
         # self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)
         num_matches = config.get("num_matches", 50)
@@ -16,7 +17,9 @@ class FlannKeypointMatcher(KeypointMatcher):
             raise ValueError("num_matches must be an integer")
         self.num_matches = num_matches
 
-    def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20) -> Tuple[Keypoints, Keypoints]:
+    def __call__(
+        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
+    ) -> Tuple[Keypoints, Keypoints]:
         """
         Finds matches between keypoints1 and keypoints2 using Brute Force Matcher.
 
@@ -28,7 +31,10 @@ class FlannKeypointMatcher(KeypointMatcher):
             M Keypoints in the second image that matches to keypoints in first image.
         """
         matches = self.matcher.knnMatch(
-            keypoints1.descriptors, keypoints2.descriptors, 2)
+            np.ascontiguousarray(keypoints1.descriptors),
+            np.ascontiguousarray(keypoints2.descriptors),
+            2,
+        )
         selected_matches = []
         matches1, matches2 = [], []
         # -- Filter matches using the Lowe's ratio test
@@ -45,7 +51,7 @@ class FlannKeypointMatcher(KeypointMatcher):
             keypoint1, keypoint2 = i1, i2
 
             # check if the keypoint matches
-            selected_match = '-'.join([str(keypoint1), str(keypoint2)])
+            selected_match = "-".join([str(keypoint1), str(keypoint2)])
             if selected_match in selected_matches:
                 continue
 
@@ -56,7 +62,9 @@ class FlannKeypointMatcher(KeypointMatcher):
         keypoints1, keypoints2 = keypoints1[matches1], keypoints2[matches2]
         return keypoints1, keypoints2
 
-    def _filter_matches(self, keypoints1: Keypoints, keypoints2: Keypoints, matches: list) -> Tuple[Keypoints, Keypoints]:
+    def _filter_matches(
+        self, keypoints1: Keypoints, keypoints2: Keypoints, matches: list
+    ) -> Tuple[Keypoints, Keypoints]:
         """
         Filters matches based on distance and ratio test.
 
@@ -72,12 +80,11 @@ class FlannKeypointMatcher(KeypointMatcher):
         matches = [match for match in matches if match.distance < 0.7]
 
         # filter matches based on ratio test
-        matches = [match for match in matches if match.distance <
-                   0.8 * matches[1].distance]
+        matches = [
+            match for match in matches if match.distance < 0.8 * matches[1].distance
+        ]
 
         # get keypoints from matches
-        keypoints1 = [keypoints1.keypoints[match.queryIdx]
-                      for match in matches]
-        keypoints2 = [keypoints2.keypoints[match.trainIdx]
-                      for match in matches]
+        keypoints1 = [keypoints1.keypoints[match.queryIdx] for match in matches]
+        keypoints2 = [keypoints2.keypoints[match.trainIdx] for match in matches]
         return Keypoints(keypoints1), Keypoints(keypoints2)
