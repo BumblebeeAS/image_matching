@@ -13,10 +13,15 @@ from feature_matcher.keypoints_match_producer import \
 
 class annotator(BasicFeatureMatcher):
 
-    def convertToRect(self, pts):
+    def convertToRect(self, pts, h, w):
         pts = np.reshape(pts,(4,2))
         max_pt = np.amax(pts, axis=0)
         min_pt = np.amin(pts, axis=0)
+        #Limit checking
+        if (max_pt > (h,w)):
+                max_pt = np.float32([h,w])
+        if (min_pt < (0,0)):
+            min_pt = np.float32([0,0])
         return np.float32([max_pt[0], max_pt[1], max_pt[0], min_pt[1], min_pt[0], min_pt[1], min_pt[0], max_pt[1]]).reshape(4,1,2)
 
     def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
@@ -48,7 +53,7 @@ class annotator(BasicFeatureMatcher):
         h,w = self.template_img.shape[:2]
         pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
         dst = cv2.perspectiveTransform(pts,M)
-        dst = self.convertToRect(dst)
+        dst = self.convertToRect(dst, h, w)
 
         img2 = cv2.polylines(img, [np.int32(dst)], True, (0,255,0),3, cv2.LINE_AA)
 
@@ -61,7 +66,7 @@ class annotator(BasicFeatureMatcher):
         if not cv2.imwrite("{}/id_{}.jpg".format(annotation_path, img_msg.header.seq), img):
             raise Exception("Could not write image")
 
-        with open(os.path.join(annotation_path,"_label.txt"), "a") as f:
+        with open(os.path.join(annotation_path,"label.txt"), "a") as f:
             temp_pts = np.reshape(dst,(4,2))
             min_x, min_y = np.amin(temp_pts, axis=0)
             w,h = abs(np.amax(temp_pts, axis=0) - (min_x, min_y))
