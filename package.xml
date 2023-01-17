@@ -11,7 +11,8 @@
 
   <depend>roscpp</depend>
   <depend>rospy</depend>
-  <depend>std_msgs</depend>
+
+  <depend>bb_msgs</depend>
 
   <depend>image_transport</depend>
   <depend>camera_models</depend>

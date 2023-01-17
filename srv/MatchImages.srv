@@ -1,5 +1,0 @@
-int64 numKeypoints
-
----
-int64 result
-image_matching/KeypointsDict keypoints_dict
