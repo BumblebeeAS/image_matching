@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import unittest
 import os
 import sys
-import numpy as np
+import unittest
 
+import numpy as np
 from rospkg import RosPack
 
 sys.path.append(os.path.abspath(RosPack().get_path("image_matching")))  # noqa E402
