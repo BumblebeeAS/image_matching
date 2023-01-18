@@ -2,15 +2,12 @@ cmake_minimum_required(VERSION 3.0.2)
 project(image_matching)
 
 add_compile_options(-std=c++17)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+# set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
-  std_msgs
-  geometry_msgs
-  nav_msgs
   bb_msgs
   tf
   message_generation
@@ -24,7 +21,7 @@ endif()
 catkin_python_setup()
 
 catkin_package(
- CATKIN_DEPENDS rospy std_msgs bb_msgs
+ CATKIN_DEPENDS rospy bb_msgs
 )
 
 include_directories(
