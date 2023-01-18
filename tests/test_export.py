@@ -1,13 +1,16 @@
-import os
-import sys
-
+#!/usr/bin/env python3
 import os
 import sys
 
 from rospkg import RosPack  # noqa E402
-sys.path.append(os.path.abspath(RosPack().get_path("image_matching") + "/src/feature_matcher"))  # noqa E402
 
-from feature_matcher.models.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
+sys.path.append(
+    os.path.abspath(RosPack().get_path("image_matching") + "/src/feature_matcher")
+)  # noqa E402
+
+from feature_matcher.models.SuperGluePretrainedNetwork.models.superpoint import (
+    SuperPoint,
+)
 from feature_matcher.models.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 
 import torch
@@ -31,7 +34,7 @@ superpoint_config = {
     ),
     "cuda": True,
 }
-ts_superpoint = SuperPoint(superpoint_config).eval().cuda()
+ts_superpoint = SuperPoint(superpoint_config).eval()  # .cuda()
 
 superglue_config = {
     "descriptor_dim": 256,
@@ -42,8 +45,8 @@ superglue_config = {
     "match_threshold": 0.2,
     "cuda": True,
 }
-ts_superglue = SuperGlue(superglue_config).eval().cuda()
-print("Loaded")
+ts_superglue = SuperGlue(superglue_config).eval()  # .cuda()
+print("All models loaded")
 
 torch.jit.save(ts_superpoint, os.path.join(weight_path, "superpoint_v1.zip"))
 torch.jit.save(
