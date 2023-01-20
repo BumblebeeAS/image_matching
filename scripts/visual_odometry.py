@@ -179,8 +179,8 @@ class BasicVisualOdometry:
             self.logger.error(f"Could not publish IMU message: {e}")
             self.logger.error(traceback.format_exc())
 
-        # Debug: Print RPY and translation
-        R_deg = Rotation.from_matrix(R).as_euler("zyx", degrees=True)
+        # Debug: Print RPY and translation (Lib seems to be using Left-hand rule)
+        R_deg = Rotation.from_matrix(-1 * R).as_euler("zyx", degrees=True)
         roll, yaw, pitch = (
             R_deg[0],
             R_deg[1],
@@ -208,8 +208,8 @@ if __name__ == "__main__":
     visualization_topic = rospy.get_param(
         "~visualization_topic", "/auv4/visual_odometry/visualisation"
     )
-    imu_topic = rospy.get_param("~imu_topic", "/auv4/visual_odometry/imu")
-    imu_frame = rospy.get_param("~imu_frame", "auv4/front_cam")
+    imu_topic = rospy.get_param("~imu_topic", "/auv4/visual_odometry/imu_ned")
+    imu_frame = rospy.get_param("~imu_frame", "auv4/front_cam_ned")
 
     camera_info = rospy.wait_for_message(camera_info_topic, CameraInfo, 10)
     if camera_info is None:
