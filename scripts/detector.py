@@ -62,7 +62,7 @@ class BasicFeatureMatcher:
     def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
         rospy.logdebug_throttle(10, f"Received image {img_msg.header.seq}")
         try:
-            img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
+            img = self.bridge.compressed_imgmsg_to_cv2(img_msg)
         except CvBridgeError as e:
             print(e)
 

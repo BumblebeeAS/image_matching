@@ -73,7 +73,7 @@ class BasicVisualOdometry:
     def callback(self, img_msg):
         rospy.logdebug_throttle(1, f"Received image {img_msg.header.seq}")
         try:
-            img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
+            img = self.bridge.compressed_imgmsg_to_cv2(img_msg)
         except CvBridgeError as e:
             self.logger.error(f"Could not convert image: {e}")
             return
