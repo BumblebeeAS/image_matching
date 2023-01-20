@@ -7,6 +7,7 @@ import numpy as np
 from rospkg import RosPack
 
 sys.path.append(os.path.abspath(RosPack().get_path("image_matching")))  # noqa E402
+import image_matching  # noqa E402
 from scripts.matcher_service import MatcherNode  # noqa E402
 
 TEMPLATE_DIR = os.path.abspath(RosPack().get_path("image_matching") + "/templates/")
