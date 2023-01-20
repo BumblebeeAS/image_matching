@@ -121,7 +121,7 @@ class BasicVisualOdometry:
             keypoints1.keypoints,
             keypoints2.keypoints,
             cameraMatrix=self.camera.camera_matrix(),
-            method=cv2.USAC_MAGSAC,
+            method=cv2.RANSAC,
             prob=0.99999,  # Taken from QuadTreeAttention's metrics code
             threshold=1.0,  # Taken from QuadTreeAttention's metrics code
         )
