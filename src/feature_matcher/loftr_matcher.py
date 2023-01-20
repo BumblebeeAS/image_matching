@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-from typing_extensions import override
+# from typing_extensions import override
 
 LoFTR_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0]
@@ -52,7 +52,7 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
 
         self.img_size = (640, 480)
 
-    @override
+    # @override
     def preprocess_img(self, img):
         """Convert cropped image into form required by matcher."""
         img_tensor, scale, lxty = self.make_query_image(img)

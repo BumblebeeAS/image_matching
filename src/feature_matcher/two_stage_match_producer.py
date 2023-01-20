@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from typing_extensions import override
+# from typing_extensions import override
 
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
@@ -50,7 +50,7 @@ class TwoStageMatchProducer(KeypointsMatchProducer):
         self.producer = producer
         self.matcher = matcher
 
-    @override
+    # @override
     def preprocess_img(self, image):
         """Preprocess the cropped image."""
         return self.producer.__call__(image)

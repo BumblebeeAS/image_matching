@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 import torch
-from typing_extensions import override
+# from typing_extensions import override
 
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
@@ -50,7 +50,7 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
             logging.error("Failed to load weights")
             raise Exception("Failed to load weights")
 
-    @override
+    #@override
     def preprocess_img(self, img):
         """Convert cropped image into form required by matcher."""
         img_tensor, scale, lxty = self.make_query_image(img)

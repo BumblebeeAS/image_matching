@@ -1,7 +1,7 @@
 from logging import Logger as PythonLogger
 
 import rospy
-from typing_extensions import override
+# from typing_extensions import override
 from typing import Union
 
 
@@ -29,17 +29,17 @@ class ROSLogger(Logger):
     def __init__(self, name: str, debug: bool = False) -> None:
         super().__init__(name, debug)
 
-    @override
+    # @override
     def warning(self, message: Union[str, Exception]):
         if self.debug:
             rospy.logwarn(self.format_message(message))
 
-    @override
+    # @override
     def info(self, message: Union[str, Exception]):
         if self.debug:
             rospy.loginfo(self.format_message(message))
 
-    @override
+    # @override
     def error(self, message: Union[str, Exception]):
         if self.debug:
             rospy.logerr(self.format_message(message))
@@ -49,17 +49,17 @@ class BasicLogger(Logger):
     def __init__(self, name: str, debug: bool = False) -> None:
         super().__init__(name, debug)
 
-    @override
+    # @override
     def warning(self, message: Union[str, Exception]):
         if self.debug:
             print(self.format_message(message))
 
-    @override
+    # @override
     def info(self, message: Union[str, Exception]):
         if self.debug:
             print(self.format_message(message))
 
-    @override
+    # @override
     def error(self, message: Union[str, Exception]):
         if self.debug:
             print(self.format_message(message))
