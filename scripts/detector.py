@@ -27,7 +27,7 @@ class BasicFeatureMatcher:
         self.template_img = cv2.imread(template_path)
         # self.image_match_producer = TwoStageMatchProducer(self.template_img, SuperPointKeypointProducer(), SuperglueKeypointMatcher())
         self.image_match_producer = get_keypoints_match_producer(
-            None, "coarse_loftr", {"debug": True}, {"debug": True}
+            None, "loftr_ts", {"debug": True}, {"debug": True, "cuda": True}
         )
 
         self.visualization_pub = rospy.Publisher(
@@ -99,7 +99,7 @@ class BasicFeatureMatcher:
 if __name__ == "__main__":
     rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
     camera_topic = rospy.get_param(
-        "~camera_topic", "/auv4/front_cam/image_color/compressed"
+        "~camera_topic", "/auv4/front_cam/image_rect_color/compressed"
     )
     visualization_topic = rospy.get_param(
         "~visualization_topic", "/visualization/compressed"
