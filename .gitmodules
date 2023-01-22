@@ -10,3 +10,6 @@
 [submodule "src/feature_matcher/models/ALIKE"]
 	path = src/feature_matcher/models/ALIKE
 	url = git@github.com:Shiaoming/ALIKE.git
+[submodule "src/feature_matcher/models/LoFTR_TRT"]
+	path = src/feature_matcher/models/LoFTR_TRT
+	url = git@github.com:Amadeus-Winarto/LoFTR_TRT.git
