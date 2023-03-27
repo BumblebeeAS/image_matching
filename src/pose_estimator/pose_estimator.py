@@ -206,8 +206,6 @@ class PoseEstimator:
 
         if keypoints1 is None or keypoints2 is None: 
             return None, None
-        
-        print(len(keypoints1.keypoints))
 
         R, t, inliers = self.compute_pose_from_keypoints(
             template,
