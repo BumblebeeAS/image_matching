@@ -284,6 +284,7 @@ def get_keypoints_match_producer(
     valid_combinations = [
         # SuperPoint detectors
         ("superpoint", "superglue"),
+        ("superpoint", "lightglue"),
         ("superpoint", "bf"),
         ("superpoint", "flann"),
         # ALIKE detectors
@@ -356,6 +357,11 @@ def get_keypoints_match_producer(
 
         return SuperglueKeypointMatcher(config)
 
+    def get_lightglue(config):
+        from feature_matcher.keypoint_matcher.lightglue import LightglueKeypointMatcher
+
+        return LightglueKeypointMatcher(config)
+
     # extractor + matchers:
 
     def get_loftr(config):
@@ -394,7 +400,12 @@ def get_keypoints_match_producer(
         "alike": get_alike,
         "keyaffhard": get_keyaffhard,
     }
-    matchers = {"superglue": get_superglue, "bf": get_bf, "flann": get_flann}
+    matchers = {
+        "superglue": get_superglue,
+        "bf": get_bf,
+        "flann": get_flann,
+        "lightglue": get_lightglue,
+    }
     extractor_matcher = {
         "loftr": get_loftr,
         "coarse_loftr": get_coarse_loftr,
