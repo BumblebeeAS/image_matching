@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Launch the pose_estimator_node node from the image_matching package. -->
+  <node name="pose_estimator_node" pkg="image_matching" type="pose_estimator_node.py" output="screen">
+    <param name="camera_topic" value="/auv4/bot_cam/image_color/compressed" />
+    <param name="camera_info_topic" value="/auv4/bot_cam/camera_info" />
+    <param name="template_width" value="0.1524" />
+    <param name="template_height" value="0.1524" />
+    <!-- <param name="detected_objects_topic" value="/auv4/vision/detected" /> -->
+    <param name="matcher" value="fast_bf" />
+    <param name="template" value="bin_lid" />
+  </node>
+
+</launch>
