@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import json
 import os
 from pathlib import Path
+import glob
 
 import cv2
 import message_filters
@@ -110,11 +112,11 @@ class BasicPoseEstimator:
             lxtyrxby = None
 
         rot, trans = self.pose_estimator.compute_pose(
-            img, "Bootlegger", img_msg.header.frame_id, lxtyrxby=lxtyrxby, debug=True
+            img, template, img_msg.header.frame_id, lxtyrxby=lxtyrxby, debug=True
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.publish_tf(
-                rot, trans, img_msg.header.frame_id, "Bootlegger", img_msg.header.stamp
+                rot, trans, img_msg.header.frame_id, template, img_msg.header.stamp
             )
 
     def publish_tf(self, rot, trans, frame_id, child_frame_id, stamp):
@@ -153,14 +155,42 @@ if __name__ == "__main__":
     )
     visualization_topic = rospy.get_param("~visualization_topic", "/visualization")
     template = rospy.get_param("~template", "Bootlegger")
+
+
+    # Accept either png or jpeg files
+    templates_dir = os.path.abspath(Path(RosPack().get_path("image_matching"))/"templates")
+    possible_templates = glob.glob(os.path.join(templates_dir, f"{template}.*"))
+    if not possible_templates:
+        rospy.logwarn_once(f"No template found for {template} in {templates_dir}")
+
     template_path = rospy.get_param(
         "~template_path",
-        os.path.abspath(
-            Path(RosPack().get_path("image_matching"))
-            / "templates"
-            / f"{template}.jpeg"
-        ),
+        possible_templates[0] if possible_templates else "FILE_NOT_FOUND.png",
     )
+    print(f"Using template {template_path}")
+    rospy.loginfo(f"Using template {template_path}")
+
+    # Retrieve template dimensions from json file
+    templates = json.loads(open(os.path.join(templates_dir, "templates.json")).read())
+    template_filename = template_path.split("/")[-1]
+    if template_filename in templates.keys():
+        saved_template_width = templates[template_filename][0]
+        saved_template_height = templates[template_filename][1]
+    else:
+        saved_template_width = None
+        saved_template_height = None
+
+    if not rospy.get_param("~use_default_dim", True):
+        template_width = rospy.get_param("~template_width", saved_template_width)
+        template_height = rospy.get_param("~template_height", saved_template_height)
+    else:
+        template_width = saved_template_width
+        template_height = saved_template_height
+    if not template_height or not template_width:
+        rospy.logerr("use_default_dim set to true but no template dimensions found")
+        exit(1)
+    rospy.loginfo(f"Using template dimensions {template_width}x{template_height}")
+
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
     matcher = rospy.get_param("~matcher", "superglue")
@@ -191,6 +221,11 @@ if __name__ == "__main__":
         image_match_producer = get_keypoints_match_producer(
             "fast", "bf", {"debug": True}, {"debug": True}
         )
+    elif matcher == "orb_bf":
+        image_match_producer = get_keypoints_match_producer(
+            "orb", "bf", {"debug": True}, {"debug": True}
+    )
+
 
     pose_estimator = BasicPoseEstimator(
         camera_topic,
@@ -200,10 +235,22 @@ if __name__ == "__main__":
         template,
         template_path,
         (
-            0.6096,
-            1.2192,
+            template_width,
+            template_height,
         ),  # TODO: get the template dimensions from launch file or service or json file
         detected_objects_topic,
     )
+
+    print("warming up")
+    pose_estimator.image_match_producer.add_image(
+        (np.random.rand(720, 640, 3) * 255).astype(np.uint8)
+    )
+    for _ in range(10):
+        pose_estimator.image_match_producer.add_image(
+            (np.random.rand(720, 640, 3) * 255).astype(np.uint8)
+    )
+        pose_estimator.image_match_producer.compute_matches()
+    pose_estimator.image_match_producer.clear_buffer()
+    print("warmed")
 
     rospy.spin()

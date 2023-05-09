@@ -9,6 +9,7 @@ from feature_matcher.keypoints_match_producer import (
 )
 from feature_matcher.tools import (
     create_show_image,
+    create_save_image,
     plot_matches,
 )
 from pose_estimator.PinholeCamera import PinholeCamera
@@ -58,6 +59,10 @@ class PoseEstimator:
             img, template, debug, num_keypoints=20, lxtyrxby=lxtyrxby, logger=logger
         )
 
+        if not keypoints1 is None:
+            print(f"keypoints1: {len(keypoints1)}, keypoints2: {len(keypoints2)}")
+        else:
+            print("no keypoints found")
         if keypoints1 is None or len(keypoints1) < 4:
             logging.warning(
                 f"Not enough matches to compute pose. Found {0 if keypoints1 is None else len(keypoints1)} matches."
@@ -83,10 +88,13 @@ class PoseEstimator:
             reprojectionError=2.0,
             flags=cv2.SOLVEPNP_ITERATIVE,
         )
+        print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
         t_z = t.squeeze()[2]
         if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
             logging.info("Not enough inliers.")
             return None, None
+
+        print("Passed inliers check.")
 
         if debug:
             _x = source_dimensions[0] / 2
