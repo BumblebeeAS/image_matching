@@ -14,6 +14,7 @@ from rospkg import RosPack
 from sensor_msgs.msg import CompressedImage
 
 from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
+import threading
 
 
 class BasicFeatureMatcher:
@@ -23,19 +24,54 @@ class BasicFeatureMatcher:
         visualization_topic,
         template,
         template_path,
+        matcher_name: str,
         detected_objects_topic=None,
         save_detections_folder=None,
     ):
         self.bridge = CvBridge()
         self.template = template
         self.template_img = cv2.imread(template_path)
-        # self.image_match_producer = TwoStageMatchProducer(self.template_img, SuperPointKeypointProducer(), SuperglueKeypointMatcher())
-        # self.image_match_producer = get_keypoints_match_producer(
-        #     None, "loftr_ts", {"debug": True}, {"debug": True, "cuda": True}
-        # )
-        self.image_match_producer = get_keypoints_match_producer(
-            "superpoint", "superglue", {"debug": True}, {"debug": True, "cuda": True}
-        )
+
+        # Setup matcher
+        if matcher_name == "coarse_loftr":
+            self.image_match_producer = get_keypoints_match_producer(
+                None, "coarse_loftr", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "loftr":
+            # TODO: Doesn't work
+            self.image_match_producer = get_keypoints_match_producer(
+                None, "loftr", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "sift_flann":
+            self.image_match_producer = get_keypoints_match_producer(
+                "sift", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "sift_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "sift", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "superpoint_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "superpoint", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "superpoint_superglue":
+            self.image_match_producer = get_keypoints_match_producer(
+                "superpoint", "superglue", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "fast_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "fast", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "orb_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "orb", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "alike_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "alike", "bf", {"debug": True}, {"debug": True}
+            )
+        else:
+            raise NotImplementedError(f"Matcher: {matcher_name} is unknown!")
 
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
@@ -77,6 +113,15 @@ class BasicFeatureMatcher:
             self.detector_srv_cb,
         )
 
+        # Data
+        self.lock = threading.Lock()
+        self.img = None
+        self.lxtyrxby = None
+
+        # Thread to actually process images
+        self.t = threading.Thread(target=self.process_image, daemon=True)
+        self.t.start()
+
     def detector_srv_cb(self, req):
         # err = "" if req.dryRun else Detector.load_detectors(req.detectors)
         resp = MLDetectorResponse()
@@ -90,6 +135,7 @@ class BasicFeatureMatcher:
             img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
         except CvBridgeError as e:
             print(e)
+            return
 
         detected_object = None
         if self.CROP_IMAGES and detected_objects is not None:
@@ -116,54 +162,74 @@ class BasicFeatureMatcher:
         else:
             lxtyrxby = None
 
-        kp1, kp2 = self.image_match_producer.process_image(
-            img, self.template, lxtyrxby=lxtyrxby, debug=True, num_keypoints=150
-        )
+        self.lock.acquire()
+        self.lxtyrxby = lxtyrxby
+        self.img = img
+        self.detected_object = detected_object
+        self.lock.release()
 
-        # Process KP2
-        if kp2 is None or kp2.shape[0] == 0:
-            return
+    def process_image(self):
+        while True:
+            self.lock.acquire()
+            img = None if self.img is None else self.img.copy()
+            lxtyrxby = self.lxtyrxby
+            detected_object = self.detected_object
+            self.lock.release()
+            if img is None:
+                continue
 
-        kp2 = np.round(kp2).astype(int)
-        min_x = np.min(kp2[:, 0])
-        max_x = np.max(kp2[:, 0])
+            kp1, kp2 = self.image_match_producer.process_image(
+                img,
+                self.template,
+                lxtyrxby=lxtyrxby,
+                debug=True,
+                num_keypoints=500,
+            )
 
-        min_y = np.min(kp2[:, 1])
-        max_y = np.max(kp2[:, 1])
+            # Process KP2
+            if kp2 is None or kp2.shape[0] == 0:
+                return
 
-        contours = [(min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, max_y)]
+            kp2 = np.round(kp2).astype(int)
+            min_x = np.min(kp2[:, 0])
+            max_x = np.max(kp2[:, 0])
 
-        cx = int((max_x + min_x) / 2)
-        cy = int((max_y + min_y) / 2.0)
+            min_y = np.min(kp2[:, 1])
+            max_y = np.max(kp2[:, 1])
 
-        w = max_x - min_x
-        h = max_y - min_y
+            contours = [(min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, max_y)]
 
-        if detected_object is None:
+            cx = int((max_x + min_x) / 2)
+            cy = int((max_y + min_y) / 2.0)
+
+            w = max_x - min_x
+            h = max_y - min_y
+
             # No one publishing on the topic => our turn to publish
-            objs = DetectedObjects()
-            objs.nodeName = "keypoint_based_detector"
-            obj = DetectedObject()
-            obj.source = 288
-            obj.name = self.template
+            if detected_object is None:
+                objs = DetectedObjects()
+                objs.nodeName = "keypoint_based_detector"
+                obj = DetectedObject()
+                obj.source = 288
+                obj.name = self.template
 
-            obj.centre_x = cx
-            obj.centre_y = cy
+                obj.centre_x = cx
+                obj.centre_y = cy
 
-            obj.bbox_height = h
-            obj.bbox_width = w
+                obj.bbox_height = h
+                obj.bbox_width = w
 
-            obj.contour = [int(coord) for point in contours for coord in point]
+                obj.contour = [int(coord) for point in contours for coord in point]
 
-            obj.image_height = 768
-            obj.image_width = 1024
+                obj.image_height = 768
+                obj.image_width = 1024
 
-            objs.detected = [obj]
-            self.detected_object_pub.publish(objs)
+                objs.detected = [obj]
+                self.detected_object_pub.publish(objs)
 
 
 if __name__ == "__main__":
-    rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
+    rospy.init_node("kp_based_detector", anonymous=True, log_level=rospy.DEBUG)
     camera_topic = rospy.get_param(
         "~camera_topic", "/auv4/front_cam/image_rect_color/compressed"
     )
@@ -183,11 +249,13 @@ if __name__ == "__main__":
     detected_objects_topic = rospy.get_param(
         "~detected_objects_topic", "/auv4/vision/external/detected"
     )
+    matcher = rospy.get_param("~matcher", "coarse_loftr")
     detector = BasicFeatureMatcher(
         camera_topic,
         visualization_topic,
         template,
         template_path,
+        matcher,
         detected_objects_topic,
         save_detections_folder,
     )

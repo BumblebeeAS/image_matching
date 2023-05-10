@@ -8,8 +8,8 @@ import numpy as np
 import rospy
 from bb_msgs.msg import DetectedObjects
 from cv_bridge import CvBridge
-from image_matching.msg import Keypoint, KeypointsDict
-from image_matching.srv import (
+from bb_msgs.msg import Keypoint, KeypointsDict
+from bb_msgs.srv import (
     ClearBuffer,
     ClearBufferRequest,
     ClearBufferResponse,
