@@ -20,15 +20,53 @@ class BasicFeatureMatcher:
         visualization_topic,
         template,
         template_path,
+        matcher_name: str,
         detected_objects_topic=None,
     ):
         self.bridge = CvBridge()
         self.template = template
         self.template_img = cv2.imread(template_path)
-        # self.image_match_producer = TwoStageMatchProducer(self.template_img, SuperPointKeypointProducer(), SuperglueKeypointMatcher())
-        self.image_match_producer = get_keypoints_match_producer(
-            None, "coarse_loftr", {"debug": True}, {"debug": True}
-        )
+
+        # Setup matcher
+        if matcher_name == "coarse_loftr":
+            self.image_match_producer = get_keypoints_match_producer(
+                None, "coarse_loftr", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "loftr":
+            # TODO: Doesn't work
+            self.image_match_producer = get_keypoints_match_producer(
+                None, "loftr", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "sift_flann":
+            self.image_match_producer = get_keypoints_match_producer(
+                "sift", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "sift_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "sift", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "superpoint_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "superpoint", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "superpoint_superglue":
+            self.image_match_producer = get_keypoints_match_producer(
+                "superpoint", "superglue", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "fast_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "fast", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "orb_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "orb", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher_name == "alike_bf":
+            self.image_match_producer = get_keypoints_match_producer(
+                "alike", "bf", {"debug": True}, {"debug": True}
+            )
+        else:
+            raise NotImplementedError(f"Matcher: {matcher_name} is unknown!")
 
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
@@ -92,12 +130,12 @@ class BasicFeatureMatcher:
             lxtyrxby = None
 
         kp1, kp2 = self.image_match_producer.process_image(
-            img, self.template, lxtyrxby=lxtyrxby, debug=True
+            img, self.template, lxtyrxby=lxtyrxby, debug=True, num_keypoints=500
         )
 
 
 if __name__ == "__main__":
-    rospy.init_node("basic_feature_matcher", anonymous=True, log_level=rospy.DEBUG)
+    rospy.init_node("kp_based_detector", anonymous=True, log_level=rospy.DEBUG)
     camera_topic = rospy.get_param(
         "~camera_topic", "/auv4/front_cam/image_color/compressed"
     )
@@ -114,11 +152,13 @@ if __name__ == "__main__":
         ),
     )
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
+    matcher = rospy.get_param("~matcher", "coarse_loftr")
     detector = BasicFeatureMatcher(
         camera_topic,
         visualization_topic,
         template,
         template_path,
+        matcher,
         detected_objects_topic,
     )
     rospy.spin()
