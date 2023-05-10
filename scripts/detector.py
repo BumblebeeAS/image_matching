@@ -11,6 +11,7 @@ from rospkg import RosPack
 from sensor_msgs.msg import CompressedImage
 
 from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
+import threading
 
 
 class BasicFeatureMatcher:
@@ -97,12 +98,22 @@ class BasicFeatureMatcher:
         )
         ts.registerCallback(self.cropped_image_callback)
 
+        # Data
+        self.lock = threading.Lock()
+        self.img = None
+        self.lxtyrxby = None
+
+        # Thread to actually process images
+        self.t = threading.Thread(target=self.process_image, daemon=True)
+        self.t.start()
+
     def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
         rospy.logdebug_throttle(10, f"Received image {img_msg.header.seq}")
         try:
             img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
         except CvBridgeError as e:
             print(e)
+            return
 
         detected_object = None
         if self.CROP_IMAGES and detected_objects is not None:
@@ -129,9 +140,32 @@ class BasicFeatureMatcher:
         else:
             lxtyrxby = None
 
-        kp1, kp2 = self.image_match_producer.process_image(
-            img, self.template, lxtyrxby=lxtyrxby, debug=True, num_keypoints=500
-        )
+        self.lock.acquire()
+        self.lxtyrxby = lxtyrxby
+        self.img = img
+        self.lock.release()
+
+    def process_image(self):
+        while True:
+            self.lock.acquire()
+            img = None if self.img is None else self.img.copy()
+            lxtyrxby = self.lxtyrxby
+            self.lock.release()
+            if img is None:
+                continue
+
+            _ = self.image_match_producer.process_image(
+                img,
+                self.template,
+                lxtyrxby=lxtyrxby,
+                debug=True,
+                num_keypoints=500,
+            )
+
+            try:
+                print(_[0].shape)
+            except Exception as e:
+                print(e)
 
 
 if __name__ == "__main__":
