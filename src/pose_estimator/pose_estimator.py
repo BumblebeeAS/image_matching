@@ -84,7 +84,7 @@ class PoseEstimator:
             kp2,
             camera.camera_matrix(),
             camera.dist_coeffs(),
-            iterationsCount=100,
+            iterationsCount=30,
             reprojectionError=2.0,
             flags=cv2.SOLVEPNP_ITERATIVE,
         )
@@ -111,6 +111,8 @@ class PoseEstimator:
                 kp2,
                 keypoints1.scores,
             )
+            # create_save_image("/home/nvidia/catkin_ws/src/image_matching/debug.png")(img)
+            # exit(1)
             self.visualize(img)
         return cv2.Rodrigues(R)[0], t.squeeze()
 
