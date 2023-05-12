@@ -20,7 +20,8 @@ class Keypoints(np.ndarray):
         Represented as a single numpy array with the following columns:
         keypoints (x, y): 0-1, scores: 2, descriptors: rest
         """
-        to_be_stacked = [keypoints, scores.squeeze()[:, None]]
+        scores = scores.squeeze() if len(scores.shape) > 1 else scores
+        to_be_stacked = [keypoints, scores[:, None]]
         if descriptors is not None:
             to_be_stacked.append(descriptors)
 
