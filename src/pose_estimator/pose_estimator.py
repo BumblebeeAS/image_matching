@@ -81,7 +81,7 @@ class PoseEstimator:
         lxtyrxby=None,
         debug=False,
         logger=None,
-        is_planar=True,  # If true, we assume object is planar => homography is used first
+        is_planar=False,  # If true, we assume object is planar => homography is used first
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -116,16 +116,19 @@ class PoseEstimator:
 
         r_vec = None
         t_vec = None
+        mask = None
         if is_planar:
             # Homography-based filtering
             H, mask = cv2.findHomography(
-                keypoints1.keypoints, keypoints2.keypoints, cv2.RANSAC, 3.0
+                keypoints1.keypoints, keypoints2.keypoints, cv2.RANSAC
             )
             if H is None or len(mask) < self.min_inliers:
-                logging.info("Not enough inliers.")
+                print("NO INLIERS")
+                # logging.info("Not enough inliers.")
                 return None, None
             R, t_vec = homography_to_pose(H, camera)
             r_vec = cv2.Rodrigues(R)[0]
+            t_vec = t_vec.reshape((3, 1))
 
         source_dimensions, source_image_size = self.templates[template]
 
@@ -147,12 +150,9 @@ class PoseEstimator:
             useExtrinsicGuess=r_vec is not None and t_vec is not None,
             iterationsCount=100,
             reprojectionError=2.0,
-            flags=cv2.SOLVEPNP_ITERATIVE,
+            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
         )
 
-        # TODO: Check if using cv2.SOLVEPNP_IPPE solves the problem
-
-        # TODO: Better but bimodal at some positions
         R, t = cv2.solvePnPRefineVVS(
             object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
         )
