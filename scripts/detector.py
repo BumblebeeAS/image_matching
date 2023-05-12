@@ -88,22 +88,10 @@ class BasicFeatureMatcher:
         self.image_match_producer.register_template(template, cv2.imread(template_path))
 
         self.PADDING = 10
-        self.CROP_IMAGES = False  # detected_objects_topic is not None
         self.save_detections_folder = save_detections_folder
 
-        if self.CROP_IMAGES:
-            rospy.loginfo("Subscribing to detected objects")
-            self.detected_objects_sub = message_filters.Subscriber(
-                detected_objects_topic, DetectedObjects
-            )
         self.image_sub = message_filters.Subscriber(input_topic, CompressedImage)
-        ts = message_filters.ApproximateTimeSynchronizer(
-            [self.image_sub, self.detected_objects_sub]
-            if self.CROP_IMAGES
-            else [self.image_sub],
-            10,
-            1,
-        )
+        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub], 10, 1)
         ts.registerCallback(self.cropped_image_callback)
 
         # Detector service for Vision
@@ -117,6 +105,7 @@ class BasicFeatureMatcher:
         self.lock = threading.Lock()
         self.img = None
         self.lxtyrxby = None
+        self.detected_object = None
 
         # Thread to actually process images
         self.t = threading.Thread(target=self.process_image, daemon=True)
@@ -137,43 +126,17 @@ class BasicFeatureMatcher:
             print(e)
             return
 
-        detected_object = None
-        if self.CROP_IMAGES and detected_objects is not None:
-            if any([x.name == self.template for x in detected_objects.detected]):
-                detected_object = sorted(
-                    detected_objects.detected, key=lambda x: x.extra[0], reverse=True
-                )[0]
-
-        if detected_object is not None:
-            PADDING = 10
-            cx, cy, w, h = (
-                detected_object.centre_x,
-                detected_object.centre_y,
-                detected_object.bbox_width,
-                detected_object.bbox_height,
-            )
-            x, y = int(cx - w / 2), int(cy - h / 2)
-            lxtyrxby = (
-                max(0, x - PADDING),
-                max(0, y - PADDING),
-                min(img.shape[1], x + w + PADDING),
-                min(img.shape[0], y + h + PADDING),
-            )
-        else:
-            lxtyrxby = None
-
         self.lock.acquire()
-        self.lxtyrxby = lxtyrxby
         self.img = img
-        self.detected_object = detected_object
         self.lock.release()
 
     def process_image(self):
         while True:
+            lxtyrxby = None
+            detected_object = None
+
             self.lock.acquire()
             img = None if self.img is None else self.img.copy()
-            lxtyrxby = self.lxtyrxby
-            detected_object = self.detected_object
             self.lock.release()
             if img is None:
                 continue
@@ -188,7 +151,7 @@ class BasicFeatureMatcher:
 
             # Process KP2
             if kp2 is None or kp2.shape[0] == 0:
-                return
+                continue
 
             kp2 = np.round(kp2).astype(int)
             min_x = np.min(kp2[:, 0])
@@ -242,7 +205,7 @@ if __name__ == "__main__":
         os.path.abspath(
             Path(RosPack().get_path("image_matching"))
             / "templates"
-            / f"{template}.jpeg"
+            / f"{template}.png"
         ),
     )
     save_detections_folder = rospy.get_param("~output_dir", "detections")
