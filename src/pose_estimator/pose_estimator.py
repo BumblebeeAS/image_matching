@@ -15,6 +15,32 @@ from feature_matcher.tools import (
 from pose_estimator.PinholeCamera import PinholeCamera
 
 
+def homography_to_pose(H: np.ndarray, use_svd=False):
+    # Normalization to ensure that ||c1|| = 1
+    norm = np.sqrt(H[0, 0] * H[0, 0] + H[1, 0] * H[1, 0] + H[2, 0] * H[2, 0])
+    H /= norm
+    c1 = H[:, 0]
+    c2 = H[:, 1]
+    c3 = np.cross(c1, c2)
+
+    tvec = H[:, 2]
+
+    # Get rough estimate of R
+    R_mat = np.zeros((3, 3))
+    for i in range(3):
+        R_mat[i, 0] = c1[i]
+        R_mat[i, 1] = c2[i]
+        R_mat[i, 2] = c3[i]
+
+    if use_svd:
+        U, _, Vt = np.linalg.svd(R_mat)
+        R_mat = U @ Vt
+        if np.linalg.det(R_mat) < 0:
+            R_mat *= -1
+
+    return R_mat, tvec
+
+
 class PoseEstimator:
     def __init__(self, keypoints_match_producer: KeypointsMatchProducer, debug=False):
         self.keypoints_match_producer = keypoints_match_producer
@@ -55,6 +81,7 @@ class PoseEstimator:
         lxtyrxby=None,
         debug=False,
         logger=None,
+        is_planar=True,  # If true, we assume object is planar => homography is used first
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -72,7 +99,7 @@ class PoseEstimator:
             logger=logger,
         )
 
-        if not keypoints1 is None:
+        if keypoints1 is not None and keypoints2 is not None:
             print(f"keypoints1: {len(keypoints1)}, keypoints2: {len(keypoints2)}")
         else:
             print("no keypoints found")
@@ -81,6 +108,24 @@ class PoseEstimator:
                 f"Not enough matches to compute pose. Found {0 if keypoints1 is None else len(keypoints1)} matches."
             )
             return None, None
+        if keypoints2 is None or len(keypoints2) < 4:
+            logging.warning(
+                f"Not enough matches to compute pose. Found {0 if keypoints2 is None else len(keypoints2)} matches."
+            )
+            return None, None
+
+        r_vec = None
+        t_vec = None
+        if is_planar:
+            # Homography-based filtering
+            H, mask = cv2.findHomography(
+                keypoints1.keypoints, keypoints2.keypoints, cv2.RANSAC, 3.0
+            )
+            if H is None or len(mask) < self.min_inliers:
+                logging.info("Not enough inliers.")
+                return None, None
+            R, t_vec = homography_to_pose(H, camera)
+            r_vec = cv2.Rodrigues(R)[0]
 
         source_dimensions, source_image_size = self.templates[template]
 
@@ -97,10 +142,15 @@ class PoseEstimator:
             kp2,
             camera.camera_matrix(),
             camera.dist_coeffs(),
+            rvec=r_vec,
+            tvec=t_vec,
+            useExtrinsicGuess=r_vec is not None and t_vec is not None,
             iterationsCount=100,
             reprojectionError=2.0,
             flags=cv2.SOLVEPNP_ITERATIVE,
         )
+
+        # TODO: Check if using cv2.SOLVEPNP_IPPE solves the problem
 
         # TODO: Better but bimodal at some positions
         R, t = cv2.solvePnPRefineVVS(
