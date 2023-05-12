@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
 
-  <arg name="camera_topic" default="/auv4/front_cam/image_rect_color/compressed" />
+  <arg name="camera_topic" default="/auv4/front_cam/image_color/compressed" />
   <arg name="camera_info_topic" default="/auv4/front_cam/camera_info" />
-  <arg name="visualization_topic" default="/bootlegger_match_vis/compressed" />
+  <arg name="visualization_topic" default="/bootlegger_match_vis1/compressed" />
   <arg name="template_width" default="0.6096" />
   <arg name="template_height" default="1.2192" />
 
@@ -19,7 +19,7 @@
 
 
   <!-- Launch the pose_estimator_node node from the image_matching package. -->
-  <node name="pose_estimator_node" pkg="image_matching" type="pose_estimator_node.py" output="screen">
+  <node name="bl_pose_estimator_node" pkg="image_matching" type="pose_estimator_node_dev.py" output="screen">
     <param name="camera_topic" value="$(arg camera_topic)" />
     <param name="camera_info_topic" value="$(arg camera_info_topic)" />
     <param name="use_default_dim" value="$(arg use_default_dim)" />
@@ -30,10 +30,5 @@
     <param name="matcher" value="$(arg matcher)" />
     <param name="template" value="$(arg template)" />
   </node>
-
-  <!-- Static transform for bootlegger -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="auv4_torpedo_board_tf"  args="0 0 0 0 -1.57079632679 1.57079632679 /auv4/Bootlegger /auv4/torpedo_board "/>
-  <node pkg="tf2_ros" type="static_transform_publisher" name="auv4_torpedo_board_ned_tf"  args="0 0 0 0 0 3.14159265358979 /auv4/torpedo_board /auv4/torpedo_board_ned "/>
-  <!-- 2.8 -1.45 0.88 -->
 
 </launch>

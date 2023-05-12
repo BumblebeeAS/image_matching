@@ -46,7 +46,15 @@ class PoseEstimator:
             callback(image)
 
     def compute_pose(
-        self, img, template, camera_frame, *, lxtyrxby=None, debug=False, logger=None
+        self,
+        img,
+        template,
+        camera_frame,
+        *,
+        num_keypoints=20,
+        lxtyrxby=None,
+        debug=False,
+        logger=None,
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -56,7 +64,12 @@ class PoseEstimator:
             camera = self.cameras[camera_frame]
 
         keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
-            img, template, debug, num_keypoints=20, lxtyrxby=lxtyrxby, logger=logger
+            img,
+            template,
+            debug,
+            num_keypoints=num_keypoints,
+            lxtyrxby=lxtyrxby,
+            logger=logger,
         )
 
         if not keypoints1 is None:
@@ -84,9 +97,14 @@ class PoseEstimator:
             kp2,
             camera.camera_matrix(),
             camera.dist_coeffs(),
-            iterationsCount=30,
+            iterationsCount=100,
             reprojectionError=2.0,
             flags=cv2.SOLVEPNP_ITERATIVE,
+        )
+
+        # TODO: Better but bimodal at some positions
+        R, t = cv2.solvePnPRefineVVS(
+            object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
         )
         print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
         t_z = t.squeeze()[2]

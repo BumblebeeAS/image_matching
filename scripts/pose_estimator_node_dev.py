@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
+from dataclasses import dataclass
 import json
 from operator import attrgetter
 import os
 from pathlib import Path
 import glob
 import copy
+from collections import deque
 
 import cv2
 import message_filters
+from typing import Any
 import numpy as np
 import rospy
 import tf2_ros
@@ -29,6 +32,11 @@ from pose_estimator.pose_estimator import PoseEstimator
 
 mutex = threading.Lock()
 
+@dataclass
+class Template:
+    name: str
+    poses: deque
+
 
 class BasicPoseEstimator:
     def __init__(
@@ -45,6 +53,9 @@ class BasicPoseEstimator:
         self.latest_msg = None
         self.bridge = CvBridge()
         self.template = template
+        self.templates = {}
+        self.templates[template] = [deque(maxlen=30), np.array([0,0,0], dtype=float)]
+        
         self.template_img = cv2.imread(template_path)
         self.image_match_producer = image_match_producer
 
@@ -156,7 +167,7 @@ class BasicPoseEstimator:
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.publish_tf(
-                rot, trans, img_msg.header.frame_id, "/auv4/" + template, img_msg.header.stamp
+                rot, trans, img_msg.header.frame_id, template+"_dev", img_msg.header.stamp
             )
 
     def publish_tf(self, rot, trans, frame_id, child_frame_id, stamp):
@@ -221,7 +232,26 @@ class BasicPoseEstimator:
                 min(pitch, 90 - pitch),
                 min(yaw, 90 - yaw),
             )
-            self.br.sendTransform(self.transform_stamped)
+            if min(min(roll, 90 - roll),
+                min(pitch, 90 - pitch),
+                min(yaw, 90 - yaw)) > 5:
+                return
+            x,y,z = attrgetter("x","y","z")(self.transform_stamped.transform.translation)
+
+            to_remove = None
+            if len(self.templates[template][0]) == self.templates[template][0].maxlen:
+                to_remove = self.templates[template][0].pop()
+            self.templates[template][0].append(copy.deepcopy(self.transform_stamped))
+            self.templates[template][1]+=np.array([x,y,z])
+            if to_remove is not None:
+                self.templates[template][1] -= np.array(attrgetter("x","y","z")(to_remove.transform.translation))
+            if len(self.templates[template][0]) >= 10:
+                mean_pos = self.templates[template][1] / len(self.templates[template][0])
+                best_tfm = min(self.templates[template][0], key=lambda x: np.linalg.norm(np.array(attrgetter("x","y","z")(x.transform.translation))-mean_pos))
+                best_tfm.header.stamp = stamp
+                best_tfm.transform.translation.x, best_tfm.transform.translation.y, best_tfm.transform.translation.z = mean_pos
+                rospy.loginfo(f"{mean_pos}")
+                self.br.sendTransform(best_tfm)
 
 
 if __name__ == "__main__":
@@ -231,14 +261,14 @@ if __name__ == "__main__":
     # image_match_producer = get_keypoints_match_producer("sift", "bf", {"debug": True}, {"debug": True}) # 0.0318265118s
     # image_match_producer = get_keypoints_match_producer("superpoint", "bf", {"debug": True}, {"debug": True})
 
-    rospy.init_node("pose_estimator", anonymous=True)
+    rospy.init_node("bt_pose_estimator_dev", anonymous=True)
     camera_topic = rospy.get_param(
-        "~camera_topic", "/auv4/front_cam/image_color/compressed"
+        "~camera_topic", "/auv4/front_cam/image_rect_color/compressed"
     )
     camera_info_topic = rospy.get_param(
         "~camera_info_topic", "/auv4/front_cam/camera_info"
     )
-    visualization_topic = rospy.get_param("~visualization_topic", "/visualization")
+    visualization_topic = rospy.get_param("~visualization_topic", "/bootlegger_match_vis1/compressed")
     template = rospy.get_param("~template", "Bootlegger")
 
     # Accept either png or jpeg files
@@ -249,9 +279,13 @@ if __name__ == "__main__":
     if not possible_templates:
         rospy.logwarn_once(f"No template found for {template} in {templates_dir}")
 
+    # template_path = rospy.get_param(
+    #     "~template_path",
+    #     possible_templates[0] if possible_templates else "FILE_NOT_FOUND.png",
+    # )
     template_path = rospy.get_param(
         "~template_path",
-        possible_templates[0] if possible_templates else "FILE_NOT_FOUND.png",
+        "/home/nvidia/catkin_ws/src/image_matching/templates/Bootlegger.jpeg"
     )
     print(f"Using template {template_path}")
     rospy.loginfo(f"Using template {template_path}")
@@ -279,7 +313,7 @@ if __name__ == "__main__":
 
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
-    matcher = rospy.get_param("~matcher", "superglue")
+    matcher = rospy.get_param("~matcher", "superpoint_superglue")
 
     camera_info = rospy.wait_for_message(camera_info_topic, CameraInfo)
 

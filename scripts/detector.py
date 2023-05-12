@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import glob
 from pathlib import Path
 
 import cv2
@@ -200,6 +201,15 @@ if __name__ == "__main__":
         "~visualization_topic", "/visualization/compressed"
     )
     template = rospy.get_param("~template", "Bootlegger")
+
+    # Accept either png or jpeg files
+    templates_dir = os.path.abspath(
+        Path(RosPack().get_path("image_matching")) / "templates"
+    )
+    possible_templates = glob.glob(os.path.join(templates_dir, f"{template}.*"))
+    if not possible_templates:
+        rospy.logwarn_once(f"No template found for {template} in {templates_dir}")
+
     template_path = rospy.get_param(
         "~template_path",
         os.path.abspath(
