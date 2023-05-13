@@ -64,12 +64,7 @@ class PoseEstimator:
             camera = self.cameras[camera_frame]
 
         keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
-            img,
-            template,
-            debug,
-            num_keypoints=num_keypoints,
-            lxtyrxby=lxtyrxby,
-            logger=logger,
+            img, template, debug, num_keypoints=100, lxtyrxby=lxtyrxby, logger=logger
         )
 
         if not keypoints1 is None:

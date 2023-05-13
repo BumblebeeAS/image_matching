@@ -106,6 +106,8 @@ class BasicPoseEstimator:
         mutex.release()
 
     def cropped_image_callback(self, debug=False):
+        # if self.latest_msg is None:
+        #     return
         mutex.acquire(blocking=True)
         img_msg = (
             copy.deepcopy(self.latest_msg) if self.latest_msg is not None else None
@@ -272,6 +274,7 @@ if __name__ == "__main__":
     else:
         template_width = saved_template_width
         template_height = saved_template_height
+    print(templates)
     if not template_height or not template_width:
         rospy.logerr("use_default_dim set to true but no template dimensions found")
         exit(1)
