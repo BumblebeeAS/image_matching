@@ -150,7 +150,7 @@ class PoseEstimator:
             useExtrinsicGuess=r_vec is not None and t_vec is not None,
             iterationsCount=100,
             reprojectionError=2.0,
-            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
+            flags=cv2.SOLVEPNP_SQPNP if is_planar else cv2.SOLVEPNP_ITERATIVE,
         )
 
         R, t = cv2.solvePnPRefineVVS(
