@@ -16,6 +16,32 @@ from feature_matcher.tools import (
 from pose_estimator.PinholeCamera import PinholeCamera
 
 
+def homography_to_pose(H: np.ndarray, use_svd=False):
+    # Normalization to ensure that ||c1|| = 1
+    norm = np.sqrt(H[0, 0] * H[0, 0] + H[1, 0] * H[1, 0] + H[2, 0] * H[2, 0])
+    H /= norm
+    c1 = H[:, 0]
+    c2 = H[:, 1]
+    c3 = np.cross(c1, c2)
+
+    tvec = H[:, 2]
+
+    # Get rough estimate of R
+    R_mat = np.zeros((3, 3))
+    for i in range(3):
+        R_mat[i, 0] = c1[i]
+        R_mat[i, 1] = c2[i]
+        R_mat[i, 2] = c3[i]
+
+    if use_svd:
+        U, _, Vt = np.linalg.svd(R_mat)
+        R_mat = U @ Vt
+        if np.linalg.det(R_mat) < 0:
+            R_mat *= -1
+
+    return R_mat, tvec
+
+
 class PoseEstimator:
     def __init__(self, keypoints_match_producer: KeypointsMatchProducer, debug=False):
         self.keypoints_match_producer = keypoints_match_producer
@@ -64,6 +90,8 @@ class PoseEstimator:
         lxtyrxby=None,
         debug=False,
         logger=None,
+        is_planar=False,  # If true, we assume object is planar => homography is used first
+        max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -84,6 +112,28 @@ class PoseEstimator:
         else:
             print(f"Num keypoints: {len(keypoints1)}")
 
+        if keypoints2 is None or len(keypoints2) < 4:
+            logging.warning(
+                f"Not enough matches to compute pose. Found {0 if keypoints2 is None else len(keypoints2)} matches."
+            )
+            return None, None
+
+        r_vec = None
+        t_vec = None
+        mask = None
+        if is_planar:
+            # Homography-based filtering
+            H, mask = cv2.findHomography(
+                keypoints1.keypoints, keypoints2.keypoints, cv2.RANSAC
+            )
+            if H is None or len(mask) < self.min_inliers:
+                print("NO INLIERS")
+                # logging.info("Not enough inliers.")
+                return None, None
+            R, t_vec = homography_to_pose(H, camera)
+            r_vec = cv2.Rodrigues(R)[0]
+            t_vec = t_vec.reshape((3, 1))
+
         source_dimensions, source_image_size = self.templates[template]
 
         object_coord = (
@@ -94,25 +144,47 @@ class PoseEstimator:
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
         kp2 = keypoints2.keypoints
 
-        _, R, t, mask = cv2.solvePnPRansac(
-            object_coord,
-            kp2,
+        _, Rs, ts, errors = cv2.solvePnPGeneric(
+            object_coord.astype(np.float64),
+            kp2.astype(np.float32),
             camera.camera_matrix(),
             camera.dist_coeffs(),
-            iterationsCount=100,
-            reprojectionError=2.0,
-            flags=cv2.SOLVEPNP_ITERATIVE,
+            rvec=r_vec,
+            tvec=t_vec,
+            useExtrinsicGuess=r_vec is not None and t_vec is not None,
+            reprojectionError=max_reprojection_error,
+            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
         )
+        if len(Rs) > 1:
+            index_min = min(
+                range(len(errors)), key=lambda idx: errors.__getitem__(idx)[0]
+            )
+            Rs = [Rs[index_min]]
+            ts = [ts[index_min]]
+            errors = [errors[index_min]]
 
-        # TODO: Better but bimodal at some positions
+        R = Rs[0]
+        t = ts[0]
+        error = errors[0][0]
+
+        if error > max_reprojection_error:
+            print(
+                f"Error: {error} larger than maximum allowed {max_reprojection_error}. Dropping pose..."
+            )
+            return None, None
+        else:
+            print("Error: ", error)
+
         R, t = cv2.solvePnPRefineVVS(
             object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
         )
-        t_z = t.squeeze()[2]
-        if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
-            return None, None
+        # print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
+        # t_z = t.squeeze()[2]
+        # if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
+        #     logging.info("Not enough inliers.")
+        #     return None, None
 
-        logging.info("Passed inliers check.")
+        # print("Passed inliers check.")
 
         if debug:
             _x = source_dimensions[0] / 2

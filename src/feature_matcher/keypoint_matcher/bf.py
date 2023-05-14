@@ -6,10 +6,24 @@ from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
+def get_norm_type(norm_str: str) -> int:
+    if norm_str == "l2":
+        return cv2.NORM_L2
+    elif norm_str == "l1":
+        return cv2.NORM_L1
+    elif norm_str == "hamming":
+        return cv2.NORM_HAMMING
+    elif norm_str == "hamming2":
+        return cv2.NORM_HAMMING2
+    else:
+        raise ValueError(f"Invalid norm type: {norm_str}")
+
+
 class BFKeypointMatcher(KeypointMatcher):
-    def __init__(self, config={"cross_check": False}):
+    def __init__(self, config={"cross_check": True, "norm_type": "l2"}):
         self.matcher = cv2.BFMatcher(
-            crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1
+            crossCheck=config.get("cross_check", False),
+            normType=get_norm_type(config.get("norm_type", "l2")),
         )
 
     def __call__(

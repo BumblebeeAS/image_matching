@@ -9,6 +9,7 @@ import numpy as np
 
 from feature_matcher.keypoints import Keypoints
 from feature_matcher.tools import create_show_image, plot_matches, white_balance
+from utils.logging import Logger
 
 T = TypeVar("T")
 
@@ -53,6 +54,12 @@ class Buffer(Generic[T]):
         if isinstance(x.id, int):
             self.images.append(x)
         self.lock.release()
+
+    def pop(self, idx: int) -> ImageWrapper[T]:
+        self.lock.acquire()
+        image = self.images.pop(idx)
+        self.lock.release()
+        return image
 
     def clear(self) -> None:
         self.lock.acquire()
@@ -235,7 +242,7 @@ class KeypointsMatchProducer(ABC):
         debug=False,
         num_keypoints=20,
         lxtyrxby=None,
-        logger=None,
+        logger: Optional[Logger] = None,
     ):
         """
         Args:
@@ -293,6 +300,7 @@ def get_keypoints_match_producer(
         # Detector-free matchers
         (None, "loftr"),
         (None, "coarse_loftr"),
+        (None, "loftr_ts"),
     ]
     if not (extractor, matcher) in valid_combinations:
         raise ValueError(
@@ -355,6 +363,13 @@ def get_keypoints_match_producer(
 
         return Coarse_LoFTRMatchProducer(config)
 
+    def get_loftr_ts(config):
+        from feature_matcher.loftr_torchscript_matcher import (
+            LoFTRTorchscriptMatchProducer,
+        )
+
+        return LoFTRTorchscriptMatchProducer(config)
+
     extractors = {
         "superpoint": get_superpoint,
         "orb": get_orb,
@@ -363,7 +378,11 @@ def get_keypoints_match_producer(
         "alike": get_alike,
     }
     matchers = {"superglue": get_superglue, "bf": get_bf, "flann": get_flann}
-    extractor_matcher = {"loftr": get_loftr, "coarse_loftr": get_coarse_loftr}
+    extractor_matcher = {
+        "loftr": get_loftr,
+        "coarse_loftr": get_coarse_loftr,
+        "loftr_ts": get_loftr_ts,
+    }
 
     if extractor is not None and extractor in extractors:
         extractor = extractors[extractor](extractor_config)
