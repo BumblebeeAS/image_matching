@@ -331,7 +331,7 @@ class BasicPoseEstimator:
             )
         if self.debug:
             global debug_file
-            debug_file.write(f"{template}, {x}, {y}, {z}, {qw}, {qx}, {qy}, {qz}\n")
+            debug_file.write(f"{template.name}, {x}, {y}, {z}, {qw}, {qx}, {qy}, {qz}\n")
 
         if len(template.poses) < self.min_buffer_size:
             return
@@ -360,8 +360,10 @@ if __name__ == "__main__":
 
     rospy.init_node("pose_estimator_dev", anonymous=True)
     debug = rospy.get_param("~debug", False)
+    print(debug)
     if debug:
         debug_file = open(f"debug_poses.csv", "w")
+        rospy.loginfo(f"Writing debug poses to {os.path.abspath(debug_file.name)}")
         rospy.on_shutdown(lambda: debug_file.close())
     front_camera_topic = rospy.get_param(
         "~front_camera_topic", "/auv4/front_cam/image_rect_color/compressed"
