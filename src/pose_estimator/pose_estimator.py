@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 import cv2
@@ -34,6 +35,14 @@ class PoseEstimator:
             np.array(template_img.shape[1::-1]),
         )  # width, height
 
+    @property
+    def available_cameras(self):
+        return self.cameras.keys()
+
+    @property
+    def available_templates(self):
+        return self.templates.keys()
+
     @staticmethod
     def draw_object_points(img, object_points, R, t, camera):
         imgpts, _ = cv2.projectPoints(
@@ -64,18 +73,16 @@ class PoseEstimator:
             camera = self.cameras[camera_frame]
 
         keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
-            img, template, debug, num_keypoints=100, lxtyrxby=lxtyrxby, logger=logger
+            img, template, debug, num_keypoints=num_keypoints, lxtyrxby=lxtyrxby, logger=logger
         )
 
-        if not keypoints1 is None:
-            print(f"keypoints1: {len(keypoints1)}, keypoints2: {len(keypoints2)}")
-        else:
-            print("no keypoints found")
         if keypoints1 is None or len(keypoints1) < 4:
             logging.warning(
                 f"Not enough matches to compute pose. Found {0 if keypoints1 is None else len(keypoints1)} matches."
             )
             return None, None
+        else:
+            print(f"Num keypoints: {len(keypoints1)}")
 
         source_dimensions, source_image_size = self.templates[template]
 
@@ -101,13 +108,11 @@ class PoseEstimator:
         R, t = cv2.solvePnPRefineVVS(
             object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
         )
-        print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
         t_z = t.squeeze()[2]
         if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
-            logging.info("Not enough inliers.")
             return None, None
 
-        print("Passed inliers check.")
+        logging.info("Passed inliers check.")
 
         if debug:
             _x = source_dimensions[0] / 2
@@ -131,7 +136,9 @@ class PoseEstimator:
 
 
 if __name__ == "__main__":
+    import sys
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     import os
 
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"
