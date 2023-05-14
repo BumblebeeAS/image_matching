@@ -82,6 +82,7 @@ class PoseEstimator:
         debug=False,
         logger=None,
         is_planar=False,  # If true, we assume object is planar => homography is used first
+        max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -140,29 +141,47 @@ class PoseEstimator:
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
         kp2 = keypoints2.keypoints
 
-        _, R, t, mask = cv2.solvePnPRansac(
-            object_coord,
-            kp2,
+        _, Rs, ts, errors = cv2.solvePnPGeneric(
+            object_coord.astype(np.float64),
+            kp2.astype(np.float32),
             camera.camera_matrix(),
             camera.dist_coeffs(),
             rvec=r_vec,
             tvec=t_vec,
             useExtrinsicGuess=r_vec is not None and t_vec is not None,
-            iterationsCount=100,
-            reprojectionError=2.0,
-            flags=cv2.SOLVEPNP_SQPNP if is_planar else cv2.SOLVEPNP_ITERATIVE,
+            reprojectionError=max_reprojection_error,
+            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
         )
+        if len(Rs) > 1:
+            index_min = min(
+                range(len(errors)), key=lambda idx: errors.__getitem__(idx)[0]
+            )
+            Rs = [Rs[index_min]]
+            ts = [ts[index_min]]
+            errors = [errors[index_min]]
+
+        R = Rs[0]
+        t = ts[0]
+        error = errors[0][0]
+
+        if error > max_reprojection_error:
+            print(
+                f"Error: {error} larger than maximum allowed {max_reprojection_error}. Dropping pose..."
+            )
+            return None, None
+        else:
+            print("Error: ", error)
 
         R, t = cv2.solvePnPRefineVVS(
             object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
         )
-        print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
-        t_z = t.squeeze()[2]
-        if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
-            logging.info("Not enough inliers.")
-            return None, None
+        # print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
+        # t_z = t.squeeze()[2]
+        # if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
+        #     logging.info("Not enough inliers.")
+        #     return None, None
 
-        print("Passed inliers check.")
+        # print("Passed inliers check.")
 
         if debug:
             _x = source_dimensions[0] / 2
