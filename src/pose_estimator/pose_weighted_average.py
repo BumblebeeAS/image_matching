@@ -74,12 +74,16 @@ if __name__ == "__main__":
     from transforms3d.euler import quat2euler
     import timeit
     np.set_printoptions(precision=3, suppress=True)
-    poses_full = pd.read_csv("/home/saber/xingyu/bbauv_ws/debug_poses.csv", header=None).iloc[:,1:].to_numpy()
-    for i in range(0,5):
+    # poses_full = pd.read_csv("/home/saber/xingyu/bbauv_ws/debug_poses.csv", header=None).iloc[:,1:].to_numpy()
+    poses_full = pd.read_csv("/home/nvidia/catkin_ws/src/image_matching/debug_poses.csv", header=None).iloc[:,1:].to_numpy()
+    # poses_full = pd.read_csv("/home/nvidia/catkin_ws/src/image_matching/debug_poses_2.csv", header=None).iloc[:,1:].to_numpy()
+    # poses_full = pd.read_csv("/home/nvidia/catkin_ws/src/image_matching/debug_poses_thresh_3.csv", header=None).iloc[:,1:].to_numpy()
+    # poses_full = pd.read_csv("/home/nvidia/catkin_ws/src/image_matching/debug_poses_5_nonrect.csv", header=None).iloc[:,1:].to_numpy()
+    for i in range(0,1):
         poses = poses_full[int(i/10 * len(poses_full)):]
-        mean = get_weighted_average(poses)
+        # mean = get_weighted_average(poses)
         # mean = get_average(poses)
-        # mean = get_kmeans_center(poses)
+        mean = get_kmeans_center(poses)
         mean_angle = quat2euler(mean[3:])
 
         fig = plt.figure()
@@ -96,7 +100,7 @@ if __name__ == "__main__":
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
-        plt.gca().set_aspect('equal', adjustable='box')
+        plt.gca().set_aspect('auto', adjustable='box')
 
         plt.show()
         print(np.array(mean)[:3], np.array(mean_angle)*180/np.pi)

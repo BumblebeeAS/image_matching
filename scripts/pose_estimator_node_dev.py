@@ -26,8 +26,6 @@ from bb_msgs.srv import (
     IMPoseEstimatorToggleTemplateResponse,
     IMPoseEstimatorGetTemplates,
     IMPoseEstimatorGetTemplatesResponse,
-    IMPoseEstimatorToggleDetector,
-    IMPoseEstimatorToggleDetectorResponse,
     IMPoseEstimatorRegisterTemplate,
     IMPoseEstimatorRegisterTemplateRequest,
     IMPoseEstimatorRegisterTemplateResponse,
@@ -71,9 +69,9 @@ class BasicPoseEstimator:
         templates_dir="./",
         debug=False,
     ):
-        self.max_buffer_size = 60
-        self.min_buffer_size = 12
-        self.max_history = 20  # keeps at least min_buffer_size poses and up to max_buffer_size poses within max_history seconds
+        self.max_buffer_size = 20
+        self.min_buffer_size = 8
+        self.max_history = 10  # keeps at least min_buffer_size poses and up to max_buffer_size poses within max_history seconds
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
         self.templates = {}
@@ -236,9 +234,13 @@ class BasicPoseEstimator:
                 rospy.logerr(e)
                 continue
             images[camera_frame_id] = img
-            camera_tf = self.tf_buffer.lookup_transform(
-                "world_ned", camera_frame_id, msg.header.stamp, rospy.Duration(2)
-            )
+            try:
+                camera_tf = self.tf_buffer.lookup_transform(
+                    "world_ned", camera_frame_id, msg.header.stamp, rospy.Duration(2)
+                )
+            except Exception as e:
+                rospy.logerr(e)
+                continue
             camera_stamp_poses[camera_frame_id] = (
                 msg.header.stamp,
                 compose(
@@ -258,7 +260,7 @@ class BasicPoseEstimator:
             if camera_frame_id not in self.pose_estimator.available_cameras:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
                 continue
-            if images[camera_frame_id] is None:
+            if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
                 rospy.logerr(f"Camera {camera_frame_id} image not received")
                 continue
             if template_name not in self.templates:
@@ -275,9 +277,10 @@ class BasicPoseEstimator:
                 images[camera_frame_id],
                 template_name,
                 camera_frame_id,
-                num_keypoints=30,
+                num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
+                max_reprojection_error=2.0
             )
             if rot is not None and trans is not None and trans[2] > 0:
                 self.update_pose(
@@ -331,11 +334,12 @@ class BasicPoseEstimator:
             )
         if self.debug:
             global debug_file
-            debug_file.write(f"{template.name}, {x}, {y}, {z}, {qw}, {qx}, {qy}, {qz}\n")
+            debug_file.write(f"{template.name}, {stamp}, {x}, {y}, {z}, {qw}, {qx}, {qy}, {qz}\n")
 
         if len(template.poses) < self.min_buffer_size:
             return
         fused_pose = get_kmeans_center(template.poses.to_numpy()[:, 1:])
+        # fused_pose = template.poses.to_numpy()[-1, 1:]
 
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
