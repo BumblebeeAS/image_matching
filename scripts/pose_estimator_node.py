@@ -16,9 +16,7 @@ from bb_msgs.msg import DetectedObjects
 from cv_bridge import CvBridge, CvBridgeError
 from rospkg import RosPack
 from sensor_msgs.msg import CameraInfo, CompressedImage
-from tf import transformations
-import tf2_geometry_msgs
-
+from geometry_msgs.msg import Vector3Stamped
 import threading
 
 from transforms3d.euler import quat2euler
@@ -26,8 +24,7 @@ from transforms3d.euler import quat2euler
 from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
 from pose_estimator.PinholeCamera import PinholeCamera
 from pose_estimator.pose_estimator import PoseEstimator
-
-mutex = threading.Lock()
+from scipy.spatial.transform import Rotation
 
 
 class BasicPoseEstimator:
@@ -42,7 +39,6 @@ class BasicPoseEstimator:
         template_dimensions,
         detected_objects_topic=None,
     ):
-        self.latest_msg = None
         self.bridge = CvBridge()
         self.template = template
         self.template_img = cv2.imread(template_path)
@@ -55,6 +51,8 @@ class BasicPoseEstimator:
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
         )
+        self.rpy_pub = rospy.Publisher("default", Vector3Stamped, queue_size=1)
+
         self.pose_estimator.visualize_callbacks.append(
             lambda img: self.visualization_pub.publish(
                 self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")
@@ -64,10 +62,10 @@ class BasicPoseEstimator:
         self.pose_estimator.register_template(
             template, template_dimensions, cv2.imread(template_path)
         )
-        self.transform_stamped = tf2_ros.TransformStamped()
-        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(30))
-        self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
-        self.br = tf2_ros.TransformBroadcaster()
+        # self.transform_stamped = tf2_ros.TransformStamped()
+        # self.tf_buffer = tf2_ros.Buffer(rospy.Duration(30))
+        # self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
+        # self.br = tf2_ros.TransformBroadcaster()
 
         # templates = {
         #     "Tommy Gun": ((0.6096, 1.2192), "/home/developer/workspace/src/image_matching/templates/Tommy Gun.jpeg"),
@@ -76,6 +74,13 @@ class BasicPoseEstimator:
 
         self.PADDING = 10
         self.CROP_IMAGES = detected_objects_topic is not None
+
+        # Shared data structure
+        self.mutex = threading.Lock()
+        self.latest_msg = None
+
+        self.point_cloud = threading.Lock()
+        self.latest_point_cloud = None
 
         # if self.CROP_IMAGES:
         #     rospy.loginfo("Subscribing to detected objects")
@@ -101,16 +106,16 @@ class BasicPoseEstimator:
         rospy.Timer(rospy.Duration(0.5), self.cropped_image_callback)
 
     def msg_callback(self, msg):
-        mutex.acquire(blocking=True)
+        self.mutex.acquire(blocking=True)
         self.latest_msg = msg
-        mutex.release()
+        self.mutex.release()
 
     def cropped_image_callback(self, debug=False):
-        mutex.acquire(blocking=True)
+        self.mutex.acquire(blocking=True)
         img_msg = (
             copy.deepcopy(self.latest_msg) if self.latest_msg is not None else None
         )
-        mutex.release()
+        self.mutex.release()
 
         if img_msg is None:
             return
@@ -150,78 +155,102 @@ class BasicPoseEstimator:
             img,
             template,
             img_msg.header.frame_id,
-            num_keypoints=100,
+            num_keypoints=300,
             lxtyrxby=lxtyrxby,
             debug=True,
         )
-        if rot is not None and trans is not None and trans[2] > 0:
-            self.publish_tf(
-                rot, trans, img_msg.header.frame_id, "/auv4/" + template, img_msg.header.stamp
-            )
+        if rot is None:
+            print("NONE")
+            return
 
-    def publish_tf(self, rot, trans, frame_id, child_frame_id, stamp):
-        self.transform_stamped.transform.translation.x = trans[0]
-        self.transform_stamped.transform.translation.y = trans[1]
-        self.transform_stamped.transform.translation.z = trans[2]
+        rot = Rotation.from_matrix(rot).as_euler(
+            "ZYX", degrees=True
+        )  # Optical Frame's YPR
+        rot[0], rot[1], rot[2] = rot[2], rot[0], rot[1]
+        print(img_msg.header.stamp.to_sec())
+        print("NED RPY (Deg): ", rot)
+        print(trans)
 
-        _rot = np.eye(4)
-        _rot[:3, :3] = rot
-        quaternion = transformations.quaternion_from_matrix(_rot)
-        if np.abs(quaternion.dot(quaternion) - 1) < 1e-6:
-            pose_stamped = tf2_geometry_msgs.PoseStamped()
-            pose_stamped.header.stamp = stamp
-            pose_stamped.header.frame_id = frame_id
-            pose_stamped.pose.position.x = trans[0]
-            pose_stamped.pose.position.y = trans[1]
-            pose_stamped.pose.position.z = trans[2]
-            pose_stamped.pose.orientation.w = quaternion[3]
-            pose_stamped.pose.orientation.z = quaternion[2]
-            pose_stamped.pose.orientation.y = quaternion[1]
-            pose_stamped.pose.orientation.x = quaternion[0]
+        msg = Vector3Stamped()
+        msg.header.stamp = img_msg.header.stamp
+        msg.header.frame_id = "world_ned"
+        msg.vector.x = rot[0]
+        msg.vector.y = rot[1]
+        msg.vector.z = rot[2]
+        self.rpy_pub.publish(msg)
 
-            try:
-                new_pose_stamped = self.tf_buffer.transform(pose_stamped, "world_ned")
-                # print(new_pose_stamped)
-            except Exception as e:
-                print(f"Could not transform {e}")
-                return
-            self.transform_stamped.header = new_pose_stamped.header
-            self.transform_stamped.transform.translation.x = (
-                new_pose_stamped.pose.position.x
-            )
-            self.transform_stamped.transform.translation.y = (
-                new_pose_stamped.pose.position.y
-            )
-            self.transform_stamped.transform.translation.z = (
-                new_pose_stamped.pose.position.z
-            )
+        # if rot is not None and trans is not None and trans[2] > 0:
+        #     self.publish_tf(
+        #         rot,
+        #         trans,
+        #         img_msg.header.frame_id,
+        #         "/auv4/" + template,
+        #         img_msg.header.stamp,
+        #     )
 
-            self.transform_stamped.transform.rotation = (
-                new_pose_stamped.pose.orientation
-            )
+    # def publish_tf(self, rot, trans, frame_id, child_frame_id, stamp):
+    #     self.transform_stamped.transform.translation.x = trans[0]
+    #     self.transform_stamped.transform.translation.y = trans[1]
+    #     self.transform_stamped.transform.translation.z = trans[2]
 
-            self.transform_stamped.header.stamp = new_pose_stamped.header.stamp
-            self.transform_stamped.header.frame_id = new_pose_stamped.header.frame_id
-            self.transform_stamped.child_frame_id = child_frame_id
+    #     _rot = np.eye(4)
+    #     _rot[:3, :3] = rot
+    #     quaternion = transformations.quaternion_from_matrix(_rot)
+    #     if np.abs(quaternion.dot(quaternion) - 1) < 1e-6:
+    #         pose_stamped = tf2_geometry_msgs.PoseStamped()
+    #         pose_stamped.header.stamp = stamp
+    #         pose_stamped.header.frame_id = frame_id
+    #         pose_stamped.pose.position.x = trans[0]
+    #         pose_stamped.pose.position.y = trans[1]
+    #         pose_stamped.pose.position.z = trans[2]
+    #         pose_stamped.pose.orientation.w = quaternion[3]
+    #         pose_stamped.pose.orientation.z = quaternion[2]
+    #         pose_stamped.pose.orientation.y = quaternion[1]
+    #         pose_stamped.pose.orientation.x = quaternion[0]
 
-            roll, pitch, yaw = (
-                np.array(
-                    quat2euler(
-                        attrgetter("w", "x", "y", "z")(
-                            self.transform_stamped.transform.rotation
-                        )
-                    )
-                )
-                * 180
-                / np.pi
-            ) % 90
-            print(
-                "RPY: ",
-                min(roll, 90 - roll),
-                min(pitch, 90 - pitch),
-                min(yaw, 90 - yaw),
-            )
-            self.br.sendTransform(self.transform_stamped)
+    #         try:
+    #             new_pose_stamped = self.tf_buffer.transform(pose_stamped, "world_ned")
+    #             # print(new_pose_stamped)
+    #         except Exception as e:
+    #             print(f"Could not transform {e}")
+    #             return
+    #         self.transform_stamped.header = new_pose_stamped.header
+    #         self.transform_stamped.transform.translation.x = (
+    #             new_pose_stamped.pose.position.x
+    #         )
+    #         self.transform_stamped.transform.translation.y = (
+    #             new_pose_stamped.pose.position.y
+    #         )
+    #         self.transform_stamped.transform.translation.z = (
+    #             new_pose_stamped.pose.position.z
+    #         )
+
+    #         self.transform_stamped.transform.rotation = (
+    #             new_pose_stamped.pose.orientation
+    #         )
+
+    #         self.transform_stamped.header.stamp = new_pose_stamped.header.stamp
+    #         self.transform_stamped.header.frame_id = new_pose_stamped.header.frame_id
+    #         self.transform_stamped.child_frame_id = child_frame_id
+
+    #         roll, pitch, yaw = (
+    #             np.array(
+    #                 quat2euler(
+    #                     attrgetter("w", "x", "y", "z")(
+    #                         self.transform_stamped.transform.rotation
+    #                     )
+    #                 )
+    #             )
+    #             * 180
+    #             / np.pi
+    #         ) % 90
+    #         print(
+    #             "RPY: ",
+    #             min(roll, 90 - roll),
+    #             min(pitch, 90 - pitch),
+    #             min(yaw, 90 - yaw),
+    #         )
+    #         self.br.sendTransform(self.transform_stamped)
 
 
 if __name__ == "__main__":
@@ -281,7 +310,52 @@ if __name__ == "__main__":
 
     matcher = rospy.get_param("~matcher", "superglue")
 
-    camera_info = rospy.wait_for_message(camera_info_topic, CameraInfo)
+    # camera_info = rospy.wait_for_message(camera_info_topic, CameraInfo)
+    camera_info = CameraInfo()
+    camera_info.header.frame_id = "auv4/front_cam_optical"
+    camera_info.width = 1024
+    camera_info.height = 768
+    camera_info.distortion_model = "plumb_bob"
+    # camera_info.D = [
+    #     -0.015462880828963604,
+    #     0.2892716111048496,
+    #     0.005741661837491234,
+    #     -0.00031142588847147054,
+    #     0.0,
+    # ]
+    camera_info.D = [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
+    camera_info.K = [
+        886.7443451327539,
+        0.0,
+        503.02433556986153,
+        0.0,
+        882.9626574530943,
+        402.31990551463923,
+        0.0,
+        0.0,
+        1.0,
+    ]
+    camera_info.R = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    camera_info.P = [
+        936.72998046875,
+        0.0,
+        503.81789589393884,
+        0.0,
+        0.0,
+        934.1458129882812,
+        404.7242786139668,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+    ]
 
     if matcher == "coarse_loftr":
         image_match_producer = get_keypoints_match_producer(
@@ -315,6 +389,12 @@ if __name__ == "__main__":
         image_match_producer = get_keypoints_match_producer(
             "alike", "bf", {"debug": True}, {"debug": True}
         )
+    elif matcher == "loftr":
+        image_match_producer = get_keypoints_match_producer(
+            None, "loftr", {"debug": True}, {"debug": True}
+        )
+    else:
+        raise ValueError(f"Matcher {matcher} not supported")
 
     pose_estimator = BasicPoseEstimator(
         camera_topic,
