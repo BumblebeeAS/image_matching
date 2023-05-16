@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 import cv2
@@ -60,6 +61,14 @@ class PoseEstimator:
             np.array(template_img.shape[1::-1]),
         )  # width, height
 
+    @property
+    def available_cameras(self):
+        return self.cameras.keys()
+
+    @property
+    def available_templates(self):
+        return self.templates.keys()
+
     @staticmethod
     def draw_object_points(img, object_points, R, t, camera):
         imgpts, _ = cv2.projectPoints(
@@ -92,23 +101,17 @@ class PoseEstimator:
             camera = self.cameras[camera_frame]
 
         keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
-            img,
-            template,
-            debug,
-            num_keypoints=num_keypoints,
-            lxtyrxby=lxtyrxby,
-            logger=logger,
+            img, template, debug, num_keypoints=num_keypoints, lxtyrxby=lxtyrxby, logger=logger
         )
 
-        if keypoints1 is not None and keypoints2 is not None:
-            print(f"keypoints1: {len(keypoints1)}, keypoints2: {len(keypoints2)}")
-        else:
-            print("no keypoints found")
         if keypoints1 is None or len(keypoints1) < 4:
             logging.warning(
                 f"Not enough matches to compute pose. Found {0 if keypoints1 is None else len(keypoints1)} matches."
             )
             return None, None
+        else:
+            print(f"Num keypoints: {len(keypoints1)}")
+
         if keypoints2 is None or len(keypoints2) < 4:
             logging.warning(
                 f"Not enough matches to compute pose. Found {0 if keypoints2 is None else len(keypoints2)} matches."
@@ -205,7 +208,9 @@ class PoseEstimator:
 
 
 if __name__ == "__main__":
+    import sys
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     import os
 
     # folder_path = "/home/developer/workspace/src/rosbags/tommy_gun_sim3_2022-12-26-05-16-08/_auv4_front_cam_image_rect_color"

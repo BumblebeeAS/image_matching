@@ -3,8 +3,8 @@
 
   <arg name="camera_topic" default="/auv4/front_cam/image_color/compressed" />
   <arg name="camera_info_topic" default="/auv4/front_cam/camera_info" />
-  <arg name="visualization_topic" default="/bootlegger_match_vis1/compressed" />
-  <arg name="template_width" default="0.6096" />
+  <arg name="visualization_topic" default="/new_torpedo_match_vis/compressed" />
+  <arg name="template_width" default="1.2192" />
   <arg name="template_height" default="1.2192" />
 
   <!-- 100/px width -->
@@ -15,11 +15,11 @@
   <!-- <arg name="matcher" default="superpoint_superglue" /> -->
   <!-- <arg name="matcher" default="loftr" /> -->
   <arg name="matcher" default="superpoint_superglue" />
-  <arg name="template" default="Bootlegger" />
+  <arg name="template" default="2023_torpedo2" />
 
 
   <!-- Launch the pose_estimator_node node from the image_matching package. -->
-  <node name="bl_pose_estimator_node" pkg="image_matching" type="pose_estimator_node_dev.py" output="screen">
+  <node name="pose_estimator_node" pkg="image_matching" type="pose_estimator_node.py" output="screen">
     <param name="camera_topic" value="$(arg camera_topic)" />
     <param name="camera_info_topic" value="$(arg camera_info_topic)" />
     <param name="use_default_dim" value="$(arg use_default_dim)" />
