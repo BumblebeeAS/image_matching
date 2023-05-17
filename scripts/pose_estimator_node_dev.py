@@ -32,6 +32,9 @@ from bb_msgs.srv import (
     IMPoseEstimatorRegisterTemplateResponse,
     IMPoseEstimatorConfig,
     IMPoseEstimatorConfigResponse,
+    IMPoseEstimatorUpdateKeypointMatches,
+    IMPoseEstimatorUpdateKeypointMatchesRequest,
+    IMPoseEstimatorUpdateKeypointMatchesResponse
 )
 
 import threading
@@ -107,6 +110,11 @@ class BasicPoseEstimator:
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
         self.br = tf2_ros.TransformBroadcaster()
 
+        self.update_keypoint_matches_service = rospy.Service(
+            "impose_update_keypoint_matches",
+            IMPoseEstimatorUpdateKeypointMatches,
+            self.update_keypoint_matches
+        )
         self.get_templates_service = rospy.Service(
             "impose_get_templates",
             IMPoseEstimatorGetTemplates,
@@ -324,6 +332,68 @@ class BasicPoseEstimator:
                     *camera_stamp_poses[camera_frame_id],
                     debug,
                 )
+
+    def update_keypoint_matches(self, req: IMPoseEstimatorUpdateKeypointMatchesRequest):
+        template_name = req.template_name
+        camera_frame_id = req.header.frame_id
+        if req.template_name not in self.pose_estimator.available_templates:
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, f"Template {req.template_name} not registered"
+            )
+        if camera_frame_id not in self.pose_estimator.cameras:
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, f"Camera {camera_frame_id} not registered"
+            )
+        try:
+            camera_tf = self.tf_buffer.lookup_transform(
+                "world_ned", camera_frame_id, req.header.stamp,
+                rospy.Duration(2)
+            )
+            camera_stamp_pose = (
+                req.header.stamp,
+                compose(
+                    attrgetter("x", "y", "z")(camera_tf.transform.translation),
+                    quat2mat(attrgetter("w", "x", "y", "z")(
+                        camera_tf.transform.rotation
+                    )),
+                    np.ones(3),
+                ),
+            )
+        except Exception as e:
+            rospy.logerr(e)
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False,
+                str(e)
+            )
+        
+        kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
+        kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
+        if len(kp1) != len(kp2) or len(kp1) < 4:
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False,
+                "Invalid keypoints: Need at least 4 pairs of keypoints"
+            )
+        rot, trans = self.pose_estimator.compute_pose_from_keypoints(
+            template_name,
+            camera_frame_id,
+            kp1, kp2,
+            debug=True,
+            max_reprojection_error=self.reprojection_error_threshold,
+        )
+        if rot is not None and trans is not None and trans[2] > 0:
+            self.update_pose(
+                rot,
+                trans,
+                camera_frame_id,
+                self.templates[template_name],
+                *camera_stamp_pose,
+                debug,
+            )
+        return IMPoseEstimatorUpdateKeypointMatchesResponse(
+            True,
+            ""
+        )
+        
 
     def update_pose(
         self, rot, trans, frame_id, template, stamp, camera_pose, debug=False

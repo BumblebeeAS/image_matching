@@ -80,6 +80,82 @@ class PoseEstimator:
         for callback in self.visualize_callbacks:
             callback(image)
 
+    def compute_pose_from_keypoints(
+        self,
+        template,
+        camera_frame,
+        keypoints1, # np.ndarray (x, y) * N
+        keypoints2, # np.ndarray (x, y) * N
+        debug=False,
+        logger=None,
+        is_planar=False,  # If true, we assume object is planar => homography is used first
+        max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
+    ):
+        if camera_frame not in self.cameras:
+            raise Exception(f"Camera {camera_frame} not registered.")
+        else:
+            camera = self.cameras[camera_frame]
+        r_vec = None
+        t_vec = None
+        mask = None
+        if is_planar:
+            # Homography-based filtering
+            H, mask = cv2.findHomography(
+                keypoints1, keypoints2, cv2.RANSAC
+            )
+            if H is None or len(mask) < self.min_inliers:
+                print("NO INLIERS")
+                # logging.info("Not enough inliers.")
+                return None, None
+            R, t_vec = homography_to_pose(H, camera)
+            r_vec = cv2.Rodrigues(R)[0]
+            t_vec = t_vec.reshape((3, 1))
+
+        source_dimensions, source_image_size = self.templates[template]
+
+        object_coord = (
+            (keypoints1 - source_image_size / 2)
+            * source_dimensions
+            / source_image_size
+        )
+        object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
+
+        _, Rs, ts, errors = cv2.solvePnPGeneric(
+            object_coord.astype(np.float64),
+            keypoints2.astype(np.float32),
+            camera.camera_matrix(),
+            camera.dist_coeffs(),
+            rvec=r_vec,
+            tvec=t_vec,
+            useExtrinsicGuess=r_vec is not None and t_vec is not None,
+            reprojectionError=max_reprojection_error,
+            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
+        )
+        if len(Rs) > 1:
+            index_min = min(
+                range(len(errors)), key=lambda idx: errors.__getitem__(idx)[0]
+            )
+            Rs = [Rs[index_min]]
+            ts = [ts[index_min]]
+            errors = [errors[index_min]]
+
+        R = Rs[0]
+        t = ts[0]
+        error = errors[0][0]
+
+        if error > max_reprojection_error:
+            print(
+                f"Error: {error} larger than maximum allowed {max_reprojection_error}. Dropping pose..."
+            )
+            return None, None
+        else:
+            print("Error: ", error)
+
+        R, t = cv2.solvePnPRefineVVS(
+            object_coord, keypoints2, camera.camera_matrix(), camera.dist_coeffs(), R, t
+        )
+        return cv2.Rodrigues(R)[0], t.squeeze()
+
     def compute_pose(
         self,
         img,
