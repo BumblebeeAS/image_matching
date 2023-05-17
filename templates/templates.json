@@ -3,11 +3,12 @@
     "Bootlegger.jpeg": [0.6096, 1.2192],
     "Badge.jpeg": [0.6096, 1.2192],
     "G-Man.jpeg": [0.6096, 1.2192],
-    "bin_lid_live.jpg": [0.2032, 0.3556],
+    "lid.jpg": [0.2032, 0.3556],
     "brown.jpeg": [0.2032, 0.3556],
     "chevron_blue.jpeg": [0.1524, 0.2286],
     "chevron_red.jpeg": [0.1524, 0.2286],
     "chevron_red.png": [0.1524, 0.2286],
     "earth_bin.jpeg": [0.3048, 0.6096],
-    "2023_torpedo2.png": [1.2192, 1.2192]
+    "2023_torpedo2.png": [1.2192, 1.2192],
+    "grey_gate.jpg": [2,1]
 }

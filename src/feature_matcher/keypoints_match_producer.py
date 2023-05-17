@@ -301,6 +301,7 @@ def get_keypoints_match_producer(
         (None, "loftr"),
         (None, "coarse_loftr"),
         (None, "loftr_ts"),
+        (None, "dkm"),
     ]
     if not (extractor, matcher) in valid_combinations:
         raise ValueError(
@@ -370,6 +371,10 @@ def get_keypoints_match_producer(
 
         return LoFTRTorchscriptMatchProducer(config)
 
+    def get_dkm(config):
+        from feature_matcher.dkm_matcher import DKMv3MatchProducer
+        return DKMv3MatchProducer(config)
+    
     extractors = {
         "superpoint": get_superpoint,
         "orb": get_orb,
@@ -382,6 +387,7 @@ def get_keypoints_match_producer(
         "loftr": get_loftr,
         "coarse_loftr": get_coarse_loftr,
         "loftr_ts": get_loftr_ts,
+        "dkm": get_dkm,
     }
 
     if extractor is not None and extractor in extractors:

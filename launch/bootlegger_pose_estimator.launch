@@ -14,7 +14,7 @@
   <!-- <arg name="detected_objects_topic" default="auv4" /> -->
   <!-- <arg name="matcher" default="superpoint_superglue" /> -->
   <!-- <arg name="matcher" default="loftr" /> -->
-  <arg name="matcher" default="superpoint_superglue" />
+  <arg name="matcher" default="dkm" />
   <arg name="template" default="Bootlegger" />
 
 

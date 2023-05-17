@@ -76,7 +76,7 @@ class BasicPoseEstimator:
         debug=False,
     ):
         self.max_buffer_size = 20
-        self.min_buffer_size = 8
+        self.min_buffer_size = 1
         
         # keeps at least min_buffer_size poses and up
         # to max_buffer_size poses within max_history seconds

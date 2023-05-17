@@ -158,7 +158,11 @@ class BasicPoseEstimator:
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.publish_tf(
-                rot, trans, img_msg.header.frame_id, "/auv4/" + template, img_msg.header.stamp
+                rot,
+                trans,
+                img_msg.header.frame_id,
+                "/auv4/" + template,
+                img_msg.header.stamp,
             )
 
     def publish_tf(self, rot, trans, frame_id, child_frame_id, stamp):
@@ -318,6 +322,12 @@ if __name__ == "__main__":
         image_match_producer = get_keypoints_match_producer(
             "alike", "bf", {"debug": True}, {"debug": True}
         )
+    elif matcher == "dkm":
+        image_match_producer = get_keypoints_match_producer(
+            None, "dkm", {"debug": True}, {"debug": True}
+        )
+    else:
+        raise NotImplementedError(f"Matcher {matcher} unimplemented!")
 
     pose_estimator = BasicPoseEstimator(
         camera_topic,
