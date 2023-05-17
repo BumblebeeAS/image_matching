@@ -13,3 +13,6 @@
 [submodule "src/feature_matcher/models/LoFTR_TRT"]
 	path = src/feature_matcher/models/LoFTR_TRT
 	url = git@github.com:Amadeus-Winarto/LoFTR_TRT.git
+[submodule "src/feature_matcher/models/DKM"]
+	path = src/feature_matcher/models/DKM
+	url = git@github.com:Parskatt/DKM.git
