@@ -368,7 +368,12 @@ class BasicPoseEstimator:
         
         kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
         kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
-        if len(kp1) != len(kp2) or len(kp1) < 4:
+        if len(kp1) != len(kp2):
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False,
+                f"Invalid keypoints: got different numbers of correspondences: {len(kp1)}, {len(kp2)}"
+            )
+        if len(kp1) < 4:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
                 "Invalid keypoints: Need at least 4 pairs of keypoints"
