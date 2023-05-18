@@ -139,19 +139,19 @@ class BasicPoseEstimator:
 
     def update_config(self, req):
         template_name = req.template_name
+
         if template_name not in self.pose_estimator.available_templates:
-            return IMPoseEstimatorConfigResponse(
-                success=False
-            )
-        template = self.templates[template_name]
+            self.templates[template_name] = self.create_default_template(template_name)
+            rospy.logerr(f"Template {template_name} not registered")
         
-        template.reprojection_error_threshold = req.max_reprojection_threshold
-        template.max_history = req.max_history
-        template.min_buffer_size = req.min_buffer_size
-        template.max_buffer_size = req.max_buffer_size
+        self.templates[template_name].reprojection_error_threshold = req.max_reprojection_threshold
+        self.templates[template_name].max_history = req.max_history
+        self.templates[template_name].min_buffer_size = req.min_buffer_size
+        self.templates[template_name].max_buffer_size = req.max_buffer_size
         if req.reset:
-            template.poses = pd.DataFrame()
-            template.computed_pose = None
+            self.templates[template_name].poses = pd.DataFrame(
+                columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"])
+            self.templates[template_name].computed_pose = None
         rospy.loginfo(f"Config updated: {req}")
         return IMPoseEstimatorConfigResponse(success=True)
 
