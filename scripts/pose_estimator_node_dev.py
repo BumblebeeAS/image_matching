@@ -64,6 +64,10 @@ class Template:
     name: str
     poses: pd.DataFrame
     computed_pose: Optional[PoseStamped]
+    min_buffer_size: int
+    max_buffer_size: int
+    max_history: float
+    reprojection_error_threshold: float
 
 
 class BasicPoseEstimator:
@@ -75,13 +79,7 @@ class BasicPoseEstimator:
         templates_dir="./",
         debug=False,
     ):
-        self.max_buffer_size = 20
-        self.min_buffer_size = 1
         
-        # keeps at least min_buffer_size poses and up
-        # to max_buffer_size poses within max_history seconds
-        self.max_history = 10 
-        self.reprojection_error_threshold = 2
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
         self.templates = {}
@@ -140,7 +138,20 @@ class BasicPoseEstimator:
         rospy.Timer(rospy.Duration(0.05), self.cropped_image_callback)
 
     def update_config(self, req):
-        self.reprojection_error_threshold = req.max_reprojection_threshold
+        template_name = req.template_name
+        if template_name not in self.pose_estimator.available_templates:
+            return IMPoseEstimatorConfigResponse(
+                success=False
+            )
+        template = self.templates[template_name]
+        
+        template.reprojection_error_threshold = req.max_reprojection_threshold
+        template.max_history = req.max_history
+        template.min_buffer_size = req.min_buffer_size
+        template.max_buffer_size = req.max_buffer_size
+        if req.reset:
+            template.poses = pd.DataFrame()
+            template.computed_pose = None
         rospy.loginfo(f"Config updated: {req}")
         return IMPoseEstimatorConfigResponse(success=True)
 
@@ -175,14 +186,22 @@ class BasicPoseEstimator:
             ""
         )
 
-    def register_template(self, img, name, dimensions):
-        self.pose_estimator.register_template(name, dimensions, img)
-        self.templates[name] = Template(
+    @staticmethod
+    def create_default_template(name):
+        return Template(
             name,
             pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
             None,
+            1,# min_buffer_size
+            20,# max_buffer_size
+            10,# max_history
+            2,# reprojection_error_threshold
         )
+
+    def register_template(self, img, name, dimensions):
+        self.pose_estimator.register_template(name, dimensions, img)
+        self.templates[name] = BasicPoseEstimator.create_default_template(name)
 
     def register_template_cb(self,
                              req: IMPoseEstimatorRegisterTemplateRequest):
@@ -321,7 +340,7 @@ class BasicPoseEstimator:
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
-                max_reprojection_error=self.reprojection_error_threshold,
+                max_reprojection_error=template.reprojection_error_threshold,
             )
             if rot is not None and trans is not None and trans[2] > 0:
                 self.update_pose(
@@ -344,6 +363,9 @@ class BasicPoseEstimator:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False, f"Camera {camera_frame_id} not registered"
             )
+        if not template_name in self.templates:
+            self.templates[template_name] = BasicPoseEstimator.create_default_template(template_name)
+
         try:
             camera_tf = self.tf_buffer.lookup_transform(
                 "world_ned", camera_frame_id, req.header.stamp,
@@ -383,7 +405,7 @@ class BasicPoseEstimator:
             camera_frame_id,
             kp1, kp2,
             debug=True,
-            max_reprojection_error=self.reprojection_error_threshold,
+            max_reprojection_error=self.templates[template_name].reprojection_error_threshold,
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
@@ -430,17 +452,17 @@ class BasicPoseEstimator:
             stamp.secs, x, y, z, qw, qx, qy, qz
         ]
 
-        if len(template.poses) > self.min_buffer_size:
+        if len(template.poses) > template.min_buffer_size:
             old_rows = template.poses.iloc[
-                :len(template.poses) - self.min_buffer_size
+                :len(template.poses) - template.min_buffer_size
             ]
             keep_rows = template.poses.iloc[
-                len(template.poses) - self.min_buffer_size:
+                len(template.poses) - template.min_buffer_size:
             ]
             template.poses = pd.concat(
                 [
                     old_rows.loc[
-                        (old_rows.stamp < stamp.secs - self.max_history).index
+                        (old_rows.stamp < stamp.secs - template.max_history).index
                     ],
                     keep_rows,
                 ]
@@ -452,7 +474,7 @@ class BasicPoseEstimator:
 {z}, {qw}, {qx}, {qy}, {qz}\n"
             )
 
-        if len(template.poses) < self.min_buffer_size:
+        if len(template.poses) < template.min_buffer_size:
             return
         fused_pose = get_kmeans_center(template.poses.to_numpy()[:, 1:])
         # fused_pose = template.poses.to_numpy()[-1, 1:]
