@@ -19,7 +19,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from rospkg import RosPack
 from sensor_msgs.msg import CameraInfo, CompressedImage
 from geometry_msgs.msg import (
-    PoseStamped, Vector3, Quaternion, TransformStamped
+    Point, PoseStamped, Vector3, Quaternion, TransformStamped
 )
 from bb_msgs.msg import DetectedObjects
 from bb_msgs.srv import (
@@ -34,7 +34,10 @@ from bb_msgs.srv import (
     IMPoseEstimatorConfigResponse,
     IMPoseEstimatorUpdateKeypointMatches,
     IMPoseEstimatorUpdateKeypointMatchesRequest,
-    IMPoseEstimatorUpdateKeypointMatchesResponse
+    IMPoseEstimatorUpdateKeypointMatchesResponse,
+    IMPoseEstimatorGetStatus,
+    IMPoseEstimatorGetStatusRequest,
+    IMPoseEstimatorGetStatusResponse,
 )
 
 import threading
@@ -82,7 +85,7 @@ class BasicPoseEstimator:
         
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
-        self.templates = {}
+        self.templates: Dict[str, Template] = {}
         self.templates_dir = templates_dir
 
         self.image_match_producer = image_match_producer
@@ -128,6 +131,11 @@ class BasicPoseEstimator:
             IMPoseEstimatorToggleTemplate,
             self.toggle_template,
         )
+        self.get_status_service = rospy.Service(
+            "impose_get_status",
+            IMPoseEstimatorGetStatus,
+            self.get_status,
+        )
         self.config_service = rospy.Service(
             "impose_config", IMPoseEstimatorConfig, self.update_config
         )
@@ -144,10 +152,12 @@ class BasicPoseEstimator:
             self.templates[template_name] = self.create_default_template(template_name)
             rospy.logerr(f"Template {template_name} not registered")
         
-        self.templates[template_name].reprojection_error_threshold = req.max_reprojection_threshold
-        self.templates[template_name].max_history = req.max_history
-        self.templates[template_name].min_buffer_size = req.min_buffer_size
-        self.templates[template_name].max_buffer_size = req.max_buffer_size
+        setattr(self.templates[template_name], "reprojection_error_threshold",
+                req.max_reprojection_threshold)
+        setattr(self.templates[template_name], "max_history", req.max_history)
+        setattr(self.templates[template_name], "min_buffer_size", req.min_buffer_size)
+        setattr(self.templates[template_name], "max_buffer_size", req.max_buffer_size)
+        
         if req.reset:
             self.templates[template_name].poses = pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"])
@@ -198,6 +208,25 @@ class BasicPoseEstimator:
             10,# max_history
             2,# reprojection_error_threshold
         )
+
+    def get_status(self, req: IMPoseEstimatorGetStatusRequest):
+        res = IMPoseEstimatorGetStatusResponse()
+        if req.template_name not in self.templates:
+            res.is_valid = False
+            return res
+        template = self.templates[req.template_name]
+        if (template.computed_pose is None):
+            res.is_valid = False
+            return res
+        time_since_last = rospy.Time.now().secs-template.computed_pose.header.stamp.secs
+        if time_since_last > template.max_history:
+            res.is_valid = False
+            res.num_poses = len(template.poses)
+            return res
+        res.pose = template.computed_pose
+        res.is_valid = True
+        res.num_poses = len(template.poses)
+        return res
 
     def register_template(self, img, name, dimensions):
         self.pose_estimator.register_template(name, dimensions, img)
@@ -326,10 +355,11 @@ class BasicPoseEstimator:
                 rospy.logerr(f"Template {template_name} not registered")
                 continue
 
+            _s = camera_stamp_poses[camera_frame_id][0].secs
+            _ns = camera_stamp_poses[camera_frame_id][0].nsecs
             rospy.logdebug_throttle(
                 10,
-                f"Processing {template_name}<->{camera_frame_id}:\
-{camera_stamp_poses[camera_frame_id][0].secs}.{camera_stamp_poses[camera_frame_id][0].nsecs}",
+                f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
             )
             template = self.templates[template_name]
 
@@ -393,7 +423,8 @@ class BasicPoseEstimator:
         if len(kp1) != len(kp2):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
-                f"Invalid keypoints: got different numbers of correspondences: {len(kp1)}, {len(kp2)}"
+                f"Invalid keypoints: got different numbers of correspondences: \
+{len(kp1)}, {len(kp2)}"
             )
         if len(kp1) < 4:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
@@ -423,7 +454,7 @@ class BasicPoseEstimator:
         
 
     def update_pose(
-        self, rot, trans, frame_id, template, stamp, camera_pose, debug=False
+        self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
     ):
         """
         Updates the pose estimate of the template in the world frame
@@ -489,7 +520,15 @@ class BasicPoseEstimator:
         transform_stamped.transform.rotation = Quaternion(qx, qy, qz, qw)
 
         self.br.sendTransform(transform_stamped)
-        template.fused_pose = transform_stamped
+
+
+        fused_pose_stamped = PoseStamped()
+        fused_pose_stamped.header.stamp = rospy.Time.now()
+        fused_pose_stamped.header.frame_id = "world_ned"
+        fused_pose_stamped.pose.position = Point(*fused_pose[:3])
+        fused_pose_stamped.pose.orientation = Quaternion(qx, qy, qz, qw)
+
+        template.computed_pose = fused_pose_stamped
 
         rospy.loginfo_throttle(
             5,
