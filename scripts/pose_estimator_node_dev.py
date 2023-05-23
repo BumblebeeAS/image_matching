@@ -383,6 +383,11 @@ class BasicPoseEstimator:
                 )
 
     def update_keypoint_matches(self, req: IMPoseEstimatorUpdateKeypointMatchesRequest):
+        """
+        Update the keypoint matches for a template -> image without performing feature matching
+
+        Ensure image is rectified version if available.
+        """
         template_name = req.template_name
         camera_frame_id = req.header.frame_id
         if req.template_name not in self.pose_estimator.available_templates:
@@ -655,7 +660,8 @@ for template of size {template_img.shape[:2]}"
                                                    CameraInfo)
         pose_estimator.register_camera(
             front_camera_topic,
-            PinholeCamera.from_camera_info(front_camera_info),
+            PinholeCamera.from_camera_info(front_camera_info,
+                                           "rect" in front_camera_topic),
         )
 
     if bottom_camera_topic is not None and\
@@ -665,6 +671,7 @@ for template of size {template_img.shape[:2]}"
         )
         pose_estimator.register_camera(
             bottom_camera_topic,
-            PinholeCamera.from_camera_info(bottom_camera_info),
+            PinholeCamera.from_camera_info(bottom_camera_info,
+                                           "rect" in bottom_camera_topic),
         )
     rospy.spin()

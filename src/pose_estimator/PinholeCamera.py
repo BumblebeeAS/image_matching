@@ -15,17 +15,28 @@ class PinholeCamera(object):
         self.distortion = abs(distortion_params[0]) > 0.0000001
         self.d = np.array(distortion_params, dtype=np.float32)
 
-    def from_camera_info(camera_info):
-        return PinholeCamera(
-            camera_info.header.frame_id,
-            camera_info.width,
-            camera_info.height,
-            camera_info.K[0],
-            camera_info.K[4],
-            camera_info.K[2],
-            camera_info.K[5],
-            *camera_info.D
-        )
+    def from_camera_info(camera_info, rectified=False):
+        if rectified:
+            return PinholeCamera(
+                camera_info.header.frame_id,
+                camera_info.width,
+                camera_info.height,
+                camera_info.P[0],
+                camera_info.P[5],
+                camera_info.P[2],
+                camera_info.P[6],
+            )
+        else:
+            return PinholeCamera(
+                camera_info.header.frame_id,
+                camera_info.width,
+                camera_info.height,
+                camera_info.K[0],
+                camera_info.K[4],
+                camera_info.K[2],
+                camera_info.K[5],
+                *camera_info.D
+            )
 
     def camera_matrix(self):
         return np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]])
