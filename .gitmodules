@@ -16,3 +16,6 @@
 [submodule "src/feature_matcher/models/DKM"]
 	path = src/feature_matcher/models/DKM
 	url = git@github.com:Parskatt/DKM.git
+[submodule "docs"]
+	path = docs
+	url = git@github.com:BumblebeeAS/image_matching.wiki

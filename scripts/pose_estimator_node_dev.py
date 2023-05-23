@@ -599,6 +599,12 @@ if __name__ == "__main__":
         image_match_producer = get_keypoints_match_producer(
             "alike", "bf", {"debug": True}, {"debug": True}
         )
+    elif matcher == "dkm":
+        image_match_producer = get_keypoints_match_producer(
+            None, "dkm", {"debug": True}, {"debug": True}
+        )
+    else:
+        raise NotImplementedError(f"Matcher {matcher} unimplemented!")
 
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
