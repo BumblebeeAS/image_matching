@@ -21,6 +21,7 @@ from sensor_msgs.msg import CameraInfo, CompressedImage
 from geometry_msgs.msg import (
     Point, PoseStamped, Vector3, Quaternion, TransformStamped
 )
+from nav_msgs.msg import Odometry
 from bb_msgs.msg import DetectedObjects
 from bb_msgs.srv import (
     IMPoseEstimatorToggleTemplate,
@@ -42,6 +43,7 @@ from bb_msgs.srv import (
 
 import threading
 from transforms3d.quaternions import mat2quat, quat2mat
+from transforms3d.euler import quat2euler
 from transforms3d.affines import compose, decompose
 
 from feature_matcher.keypoints_match_producer\
@@ -110,6 +112,10 @@ class BasicPoseEstimator:
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(15))
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
         self.br = tf2_ros.TransformBroadcaster()
+        self.odom_pub = rospy.Publisher(
+            "impose_estimates",
+            Odometry
+        )
 
         self.update_keypoint_matches_service = rospy.Service(
             "impose_update_keypoint_matches",
@@ -354,7 +360,9 @@ class BasicPoseEstimator:
             if template_name not in self.templates:
                 rospy.logerr(f"Template {template_name} not registered")
                 continue
-
+            if camera_frame_id not in camera_stamp_poses or len(camera_stamp_poses[camera_frame_id]) == 0:
+                rospy.logerr(f"No camera poses found for {camera_frame_id}")
+                continue
             _s = camera_stamp_poses[camera_frame_id][0].secs
             _ns = camera_stamp_poses[camera_frame_id][0].nsecs
             rospy.logdebug_throttle(
@@ -487,7 +495,6 @@ class BasicPoseEstimator:
         template.poses.loc[len(template.poses)] = [
             stamp.secs, x, y, z, qw, qx, qy, qz
         ]
-
         if len(template.poses) > template.min_buffer_size:
             old_rows = template.poses.iloc[
                 :len(template.poses) - template.min_buffer_size
@@ -503,6 +510,8 @@ class BasicPoseEstimator:
                     keep_rows,
                 ]
             )
+            template.poses = template.poses.iloc[-template.max_buffer_size:]
+        print(template.max_buffer_size, len(template.poses))
         if self.debug:
             global debug_file
             debug_file.write(
@@ -512,13 +521,24 @@ class BasicPoseEstimator:
 
         if len(template.poses) < template.min_buffer_size:
             return
-        fused_pose = get_kmeans_center(template.poses.to_numpy()[:, 1:])
-        # fused_pose = template.poses.to_numpy()[-1, 1:]
+        poses = template.poses.to_numpy()[:, 1:]
+        fused_pose = get_kmeans_center(poses)
+
+        fused_pose_ang = quat2euler(fused_pose[3:])
+        _fused_pose = np.hstack([
+            fused_pose[:3],
+            fused_pose_ang
+        ])
+        _poses = np.hstack([
+            poses[:, :3],
+            np.array([quat2euler(q) for q in poses[:,3:]])])
+        _err = _poses - _fused_pose
+        variance = np.maximum(np.var(_err, 0), 0.00001)
 
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
         transform_stamped.header.frame_id = "world_ned"
-        transform_stamped.child_frame_id = template.name
+        transform_stamped.child_frame_id = template.name + "_optical"
 
         transform_stamped.transform.translation = Vector3(*fused_pose[:3])
         qw, qx, qy, qz = fused_pose[3:]
@@ -537,9 +557,17 @@ class BasicPoseEstimator:
 
         rospy.loginfo_throttle(
             5,
-            f"Published transform {template.name}:\
+            f"Published transform {template.name}_optical:\
                 {transform_stamped.transform.translation}",
         )
+
+        odometry = Odometry()
+        odometry.header = fused_pose_stamped.header
+        odometry.pose.pose = fused_pose_stamped.pose
+        odometry.child_frame_id = template.name + "_optical"
+        odometry.pose.covariance = np.diag(variance).flatten().tolist()
+        self.odom_pub.publish(odometry)
+
 
 
 if __name__ == "__main__":

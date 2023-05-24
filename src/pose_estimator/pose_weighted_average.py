@@ -60,6 +60,8 @@ def get_average(poses):
     return [*trans, *quat]
 
 def get_kmeans_center(poses, n_clusters=2):
+    if len(poses) == 1:
+        return poses[0]
     angles = np.array([quat2euler(q) for q in poses[:,3:]])
     X = np.concatenate([poses[:, :3], angles], axis=1)
     centroids,_ = kmeans(X,n_clusters)
