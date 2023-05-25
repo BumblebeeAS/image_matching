@@ -84,7 +84,7 @@ class BasicPoseEstimator:
         templates_dir="./",
         debug=False,
     ):
-        
+
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
         self.templates: Dict[str, Template] = {}
@@ -157,13 +157,13 @@ class BasicPoseEstimator:
         if template_name not in self.pose_estimator.available_templates:
             self.templates[template_name] = self.create_default_template(template_name)
             rospy.logerr(f"Template {template_name} not registered")
-        
+
         setattr(self.templates[template_name], "reprojection_error_threshold",
                 req.max_reprojection_threshold)
         setattr(self.templates[template_name], "max_history", req.max_history)
         setattr(self.templates[template_name], "min_buffer_size", req.min_buffer_size)
         setattr(self.templates[template_name], "max_buffer_size", req.max_buffer_size)
-        
+
         if req.reset:
             self.templates[template_name].poses = pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"])
@@ -209,10 +209,10 @@ class BasicPoseEstimator:
             pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
             None,
-            1,# min_buffer_size
-            20,# max_buffer_size
-            10,# max_history
-            2,# reprojection_error_threshold
+            1,  # min_buffer_size
+            20,  # max_buffer_size
+            10,  # max_history
+            2,  # reprojection_error_threshold
         )
 
     def get_status(self, req: IMPoseEstimatorGetStatusRequest):
@@ -430,7 +430,7 @@ class BasicPoseEstimator:
                 False,
                 str(e)
             )
-        
+
         kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
         kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
         if len(kp1) != len(kp2):
@@ -464,7 +464,6 @@ class BasicPoseEstimator:
             True,
             ""
         )
-        
 
     def update_pose(
         self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
@@ -491,7 +490,6 @@ class BasicPoseEstimator:
 
         x, y, z = T
         qw, qx, qy, qz = object_quat
-
         template.poses.loc[len(template.poses)] = [
             stamp.secs, x, y, z, qw, qx, qy, qz
         ]
@@ -511,7 +509,7 @@ class BasicPoseEstimator:
                 ]
             )
             template.poses = template.poses.iloc[-template.max_buffer_size:]
-        print(template.max_buffer_size, len(template.poses))
+        template.poses.reset_index(drop=True, inplace=True)
         if self.debug:
             global debug_file
             debug_file.write(
@@ -531,7 +529,7 @@ class BasicPoseEstimator:
         ])
         _poses = np.hstack([
             poses[:, :3],
-            np.array([quat2euler(q) for q in poses[:,3:]])])
+            np.array([quat2euler(q) for q in poses[:, 3:]])])
         _err = _poses - _fused_pose
         variance = np.maximum(np.var(_err, 0), 0.00001)
 
@@ -545,7 +543,6 @@ class BasicPoseEstimator:
         transform_stamped.transform.rotation = Quaternion(qx, qy, qz, qw)
 
         self.br.sendTransform(transform_stamped)
-
 
         fused_pose_stamped = PoseStamped()
         fused_pose_stamped.header.stamp = rospy.Time.now()
@@ -567,7 +564,6 @@ class BasicPoseEstimator:
         odometry.child_frame_id = template.name + "_optical"
         odometry.pose.covariance = np.diag(variance).flatten().tolist()
         self.odom_pub.publish(odometry)
-
 
 
 if __name__ == "__main__":
