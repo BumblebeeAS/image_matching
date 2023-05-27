@@ -43,7 +43,7 @@ from bb_msgs.srv import (
 
 import threading
 from transforms3d.quaternions import mat2quat, quat2mat
-from transforms3d.euler import quat2euler
+from transforms3d.euler import quat2euler, euler2quat
 from transforms3d.affines import compose, decompose
 
 from feature_matcher.keypoints_match_producer\
@@ -71,6 +71,7 @@ class Template:
     computed_pose: Optional[PoseStamped]
     min_buffer_size: int
     max_buffer_size: int
+    min_matches: int
     max_history: float
     reprojection_error_threshold: float
 
@@ -163,6 +164,7 @@ class BasicPoseEstimator:
         setattr(self.templates[template_name], "max_history", req.max_history)
         setattr(self.templates[template_name], "min_buffer_size", req.min_buffer_size)
         setattr(self.templates[template_name], "max_buffer_size", req.max_buffer_size)
+        setattr(self.templates[template_name], "min_matches", req.min_matches)
 
         if req.reset:
             self.templates[template_name].poses = pd.DataFrame(
@@ -211,7 +213,8 @@ class BasicPoseEstimator:
             None,
             1,  # min_buffer_size
             20,  # max_buffer_size
-            10,  # max_history
+            10,  # max_history,
+            4, # min_matches
             2,  # reprojection_error_threshold
         )
 
@@ -407,8 +410,9 @@ class BasicPoseEstimator:
                 False, f"Camera {camera_frame_id} not registered"
             )
         if not template_name in self.templates:
-            self.templates[template_name] = BasicPoseEstimator.create_default_template(template_name)
-
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, f"Template {req.template_name} not registered"
+            )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
                 "world_ned", camera_frame_id, req.header.stamp,
@@ -439,10 +443,10 @@ class BasicPoseEstimator:
                 f"Invalid keypoints: got different numbers of correspondences: \
 {len(kp1)}, {len(kp2)}"
             )
-        if len(kp1) < 4:
+        if len(kp1) < max(4, self.templates[template_name].min_matches):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
-                "Invalid keypoints: Need at least 4 pairs of keypoints"
+                f"Invalid keypoints: Need at least max(4, self.templates[template_name].min_matches) pairs of keypoints"
             )
         rot, trans = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
@@ -542,13 +546,24 @@ class BasicPoseEstimator:
         qw, qx, qy, qz = fused_pose[3:]
         transform_stamped.transform.rotation = Quaternion(qx, qy, qz, qw)
 
+
         self.br.sendTransform(transform_stamped)
+        transform_zeroed = transform_stamped
+
+        rangle = np.pi/2
+        r, p, y = quat2euler(fused_pose[3:], axes='rzyx')
+        new_r, new_p, new_y = r, np.round(p / rangle) * rangle, np.round(y / rangle) * rangle
+        qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
+        transform_zeroed.transform.rotation = Quaternion(qx, qy, qz, qw)
+        transform_zeroed.child_frame_id = template.name + "_stabilized"
+        self.br.sendTransform(transform_zeroed)
+
 
         fused_pose_stamped = PoseStamped()
         fused_pose_stamped.header.stamp = rospy.Time.now()
         fused_pose_stamped.header.frame_id = "world_ned"
         fused_pose_stamped.pose.position = Point(*fused_pose[:3])
-        fused_pose_stamped.pose.orientation = Quaternion(qx, qy, qz, qw)
+        fused_pose_stamped.pose.orientation = transform_zeroed.transform.rotation
 
         template.computed_pose = fused_pose_stamped
 
@@ -676,7 +691,7 @@ for template of size {template_img.shape[:2]}"
             (
                 template_width,
                 template_height,
-            ),
+            )
         )
 
     if front_camera_topic is not None and front_camera_info_topic is not None:
