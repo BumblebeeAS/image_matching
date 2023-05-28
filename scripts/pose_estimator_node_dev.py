@@ -706,8 +706,15 @@ for template of size {template_img.shape[:2]}"
                                             "rect" in front_camera_topic),
             )
     except:
-        rospy.logwarn("Front camera not found!")
-
+        rospy.logwarn("Front camera not found! Using default")
+        pose_estimator.register_camera(
+            bottom_camera_topic,
+            PinholeCamera(
+                "auv4/front_cam_optical",
+                1024,
+                768,
+                452.3013610839844, 482.3131408691406, 526.00118954543, 396.61607947004813
+            ))
     try:
         if bottom_camera_topic is not None and\
                 bottom_camera_info_topic is not None:
@@ -721,5 +728,13 @@ for template of size {template_img.shape[:2]}"
                                             "rect" in bottom_camera_topic),
             )
     except:
-        rospy.logwarn("Bottom camera not found!")
+        rospy.logwarn("Bottom camera not found! Using default")
+        pose_estimator.register_camera(
+            bottom_camera_topic,
+            PinholeCamera(
+                "auv4/bot_cam_optical",
+                1024,
+                768,
+                436.40875244140625, 467.6256103515625, 510.88065980075044, 376.3738157469634
+            ))
     rospy.spin()
