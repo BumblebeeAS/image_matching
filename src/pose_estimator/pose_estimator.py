@@ -55,7 +55,10 @@ class PoseEstimator:
         self.cameras[camera.frame_id] = camera
 
     def register_template(self, name, world_dimensions, template_img):
-        self.keypoints_match_producer.register_template(name, template_img)
+        if "_seg" in name:
+            print("Will not perform matching for segmentation templates")
+        else:
+            self.keypoints_match_producer.register_template(name, template_img)
         self.templates[name] = (
             np.array(world_dimensions),
             np.array(template_img.shape[1::-1]),

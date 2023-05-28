@@ -115,7 +115,8 @@ class BasicPoseEstimator:
         self.br = tf2_ros.TransformBroadcaster()
         self.odom_pub = rospy.Publisher(
             "impose_estimates",
-            Odometry
+            Odometry,
+            queue_size=1
         )
 
         self.update_keypoint_matches_service = rospy.Service(
@@ -199,6 +200,7 @@ class BasicPoseEstimator:
                 )
             self.active_templates.remove((req.template_name,
                                           req.camera_frame_id))
+        print("toggled template")
         return IMPoseEstimatorToggleTemplateResponse(
             (req.template_name, req.camera_frame_id) in self.active_templates,
             ""
@@ -569,14 +571,14 @@ class BasicPoseEstimator:
 
         rospy.loginfo_throttle(
             5,
-            f"Published transform {template.name}_optical:\
+            f"Published transform {template.name}_stabilized:\
                 {transform_stamped.transform.translation}",
         )
 
         odometry = Odometry()
         odometry.header = fused_pose_stamped.header
         odometry.pose.pose = fused_pose_stamped.pose
-        odometry.child_frame_id = template.name + "_optical"
+        odometry.child_frame_id = template.name + "_stabilized"
         odometry.pose.covariance = np.diag(variance).flatten().tolist()
         self.odom_pub.publish(odometry)
 
@@ -693,24 +695,31 @@ for template of size {template_img.shape[:2]}"
                 template_height,
             )
         )
+    print("Registered templates")
+    try:
+        if front_camera_topic is not None and front_camera_info_topic is not None:
+            front_camera_info = rospy.wait_for_message(front_camera_info_topic,
+                                                    CameraInfo, timeout=1)
+            pose_estimator.register_camera(
+                front_camera_topic,
+                PinholeCamera.from_camera_info(front_camera_info,
+                                            "rect" in front_camera_topic),
+            )
+    except:
+        rospy.logwarn("Front camera not found!")
 
-    if front_camera_topic is not None and front_camera_info_topic is not None:
-        front_camera_info = rospy.wait_for_message(front_camera_info_topic,
-                                                   CameraInfo)
-        pose_estimator.register_camera(
-            front_camera_topic,
-            PinholeCamera.from_camera_info(front_camera_info,
-                                           "rect" in front_camera_topic),
-        )
-
-    if bottom_camera_topic is not None and\
-            bottom_camera_info_topic is not None:
-        bottom_camera_info = rospy.wait_for_message(
-            bottom_camera_info_topic, CameraInfo
-        )
-        pose_estimator.register_camera(
-            bottom_camera_topic,
-            PinholeCamera.from_camera_info(bottom_camera_info,
-                                           "rect" in bottom_camera_topic),
-        )
+    try:
+        if bottom_camera_topic is not None and\
+                bottom_camera_info_topic is not None:
+            bottom_camera_info = rospy.wait_for_message(
+                bottom_camera_info_topic, CameraInfo
+                , timeout=1
+            )
+            pose_estimator.register_camera(
+                bottom_camera_topic,
+                PinholeCamera.from_camera_info(bottom_camera_info,
+                                            "rect" in bottom_camera_topic),
+            )
+    except:
+        rospy.logwarn("Bottom camera not found!")
     rospy.spin()
