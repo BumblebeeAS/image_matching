@@ -11,9 +11,9 @@
   <!-- 0.159960313, 0.480099482 -->
   <!-- −0.12971906, −0.220308808 -->
   <!-- <arg name="detected_objects_topic" default="auv4" /> -->
-  <!-- <arg name="matcher" default="superpoint_superglue" /> -->
-  <!-- <arg name="matcher" default="loftr" /> -->
   <arg name="matcher" default="superpoint_superglue" />
+  <!-- <arg name="matcher" default="loftr" /> -->
+  <!-- <arg name="matcher" default="orb_flann" /> -->
 
 
   <!-- Launch the pose_estimator_node node from the image_matching package. -->

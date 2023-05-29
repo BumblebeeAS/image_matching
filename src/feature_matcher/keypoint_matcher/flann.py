@@ -8,7 +8,7 @@ from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
 class FlannKeypointMatcher(KeypointMatcher):
-    def __init__(self, config={"cross_check": False, "num_matches": 20}):
+    def __init__(self, config={"cross_check": True, "num_matches": 20}):
         self.matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
 
         # self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)

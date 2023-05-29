@@ -291,6 +291,7 @@ def get_keypoints_match_producer(
         ("alike", "flann"),
         # ORB detectors
         ("orb", "bf"),
+        ("orb", "flann"),
         # SIFT detectors
         ("sift", "bf"),
         ("sift", "flann"),

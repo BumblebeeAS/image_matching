@@ -47,6 +47,7 @@ class Template:
     width: int
     height: int
 
+mutex = threading.Lock()
 
 class BasicPoseLabeller:
     def __init__(
@@ -68,17 +69,12 @@ class BasicPoseLabeller:
         self.subscribers = {}
         self.object_poses = {}
 
-        self.visualization_pub = rospy.Publisher(
-            visualization_topic, CompressedImage, queue_size=1
+        self.front_visualization_pub = rospy.Publisher(
+            front_visualization_topic, CompressedImage, queue_size=1
         )
-
-        self.debug = debug
-        if debug:
-            self.pose_estimator.visualize_callbacks.append(
-                lambda img: self.visualization_pub.publish(
-                    self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")
-                )
-            )
+        self.bot_visualization_pub = rospy.Publisher(
+            bot_visualization_topic, CompressedImage, queue_size=1
+        )
 
         self.active_templates: Set[
             Tuple[str, str]
@@ -110,7 +106,9 @@ class BasicPoseLabeller:
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
+            mutex.acquire(blocking=True)
             self.latest_msgs[camera_frame_id] = msg
+            mutex.release()
 
         return callback
     
@@ -138,6 +136,8 @@ class BasicPoseLabeller:
             detections (List[Tuple[str, np.ndarray]]): list of (label, bbox)
         """
         if not self.autolabel:
+            return
+        if len(detections) == 0:
             return
 
         time_str = f"{rospy.get_time():.6f}"
@@ -197,7 +197,10 @@ class BasicPoseLabeller:
             image_polygon = Polygon([[0, 0], [image_width, 0],[image_width, image_height], [0, image_height]])
             detections = []
             for world_object in self.object_poses.values():
-                template_name = world_object.child_frame_id.strip("_stabilized")
+                template_name = world_object.child_frame_id.split("_stabilized")[0]
+                if not template_name in self.templates:
+                    print(f"{template_name} not found")
+                    continue
                 width, height = attrgetter("width", "height")(self.templates[template_name])
                 point_coords = np.array([[-width / 2, -height / 2, 0, 1],
                                       [width / 2, -height / 2, 0, 1],
@@ -221,8 +224,12 @@ class BasicPoseLabeller:
 
                 image_points = cv2.projectPoints(world_points, camera_pose[1][:3, :3], camera_pose[1][:3, 3], self.cameras[camera_frame].camera_matrix(), self.cameras[camera_frame].dist_coeffs())
 
-                poly = image_polygon.intersection(Polygon(image_points[0][:,0]))
-                if poly.is_empty:
+                try:
+                    poly = image_polygon.intersection(Polygon(image_points[0][:,0]))
+                    if poly.is_empty:
+                        continue
+                except Exception as e:                    
+                    print(e)
                     continue
                 coords = poly.boundary.coords.xy
                 min_x = int(np.min(coords[0]))
@@ -239,11 +246,14 @@ class BasicPoseLabeller:
                 for point in coords:
                     cv2.circle(vis, (int(point[0]), int(point[1])), 5, (0, 0, 255), -1)
                 
+                cv2.circle(vis, (int(image_points[0][0][0][0]), int(image_points[0][0][0][1])), 5, (255, 0, 0), -1)
+                
                 detections.append((template_name, (cx, cy, w, h), coords))
 
             
-            self.save_image_labels_yolov8(vis, detections)    
-            self.debug_img_pub.publish(self.bridge.cv2_to_compressed_imgmsg(vis))
+            self.save_image_labels_yolov8(img, detections)    
+            {"auv4/front_cam_optical": self.front_visualization_pub,
+             "auv4/bot_cam_optical": self.bot_visualization_pub}[camera_frame].publish(self.bridge.cv2_to_compressed_imgmsg(vis))
 
 
                 
@@ -297,7 +307,6 @@ if __name__ == "__main__":
 
     rospy.init_node("pose_estimator_dev", anonymous=True)
     debug = rospy.get_param("~debug", False)
-    print(debug)
     if debug:
         debug_file = open(f"debug_poses.csv", "w")
         rospy.loginfo(f"Writing debug poses to {os.path.abspath(debug_file.name)}")
@@ -315,8 +324,11 @@ if __name__ == "__main__":
     bottom_camera_info_topic = rospy.get_param(
         "~bottom_camera_info_topic", "/auv4/bot_cam/camera_info"
     )
-    visualization_topic = rospy.get_param(
-        "~visualization_topic", "/pose_estimator_vis/compressed"
+    front_visualization_topic = rospy.get_param(
+        "~front_visualization_topic", "/debug_front_pose_estimate/compressed"
+    )
+    bot_visualization_topic = rospy.get_param(
+        "~bot_visualization_topic", "/debug_bot_pose_estimate/compressed"
     )
     templates_dir = os.path.abspath(
         Path(RosPack().get_path("image_matching")) / "templates"
@@ -329,7 +341,7 @@ if __name__ == "__main__":
     templates = json.loads(open(
         os.path.join(templates_dir, "templates.json")).read())
     
-    pose_labeller = BasicPoseLabeller(autolabel=rospy.get_param("~autolabel", True), annotations_dir=annotations_dir)
+    pose_labeller = BasicPoseLabeller(autolabel=rospy.get_param("~autolabel", False), annotations_dir=annotations_dir)
     for template in templates.keys():
         template = os.path.splitext(template)[0]
         template_path = os.path.join(templates_dir, template)
@@ -357,23 +369,45 @@ for template of size {template_img.shape[:2]}"
             )
         )
 
-    if front_camera_topic is not None and front_camera_info_topic is not None:
-        front_camera_info = rospy.wait_for_message(front_camera_info_topic,
-                                                   CameraInfo)
-        pose_labeller.register_camera(
-            front_camera_topic,
-            PinholeCamera.from_camera_info(front_camera_info,
-                                           "rect" in front_camera_topic),
-        )
-
-    if bottom_camera_topic is not None and\
-            bottom_camera_info_topic is not None:
-        bottom_camera_info = rospy.wait_for_message(
-            bottom_camera_info_topic, CameraInfo
-        )
+    try:
+        if front_camera_topic is not None and front_camera_info_topic is not None:
+            front_camera_info = rospy.wait_for_message(front_camera_info_topic,
+                                                    CameraInfo, timeout=1)
+            pose_labeller.register_camera(
+                front_camera_topic,
+                PinholeCamera.from_camera_info(front_camera_info,
+                                            "rect" in front_camera_topic),
+            )
+    except:
+        rospy.logwarn("Front camera not found! Using default")
         pose_labeller.register_camera(
             bottom_camera_topic,
-            PinholeCamera.from_camera_info(bottom_camera_info,
-                                           "rect" in bottom_camera_topic),
-        )
+            PinholeCamera(
+                "auv4/front_cam_optical",
+                1024,
+                768,
+                452.3013610839844, 482.3131408691406, 526.00118954543, 396.61607947004813
+            ))
+    try:
+        if bottom_camera_topic is not None and\
+                bottom_camera_info_topic is not None:
+            bottom_camera_info = rospy.wait_for_message(
+                bottom_camera_info_topic, CameraInfo
+                , timeout=1
+            )
+            pose_labeller.register_camera(
+                bottom_camera_topic,
+                PinholeCamera.from_camera_info(bottom_camera_info,
+                                            "rect" in bottom_camera_topic),
+            )
+    except:
+        rospy.logwarn("Bottom camera not found! Using default")
+        pose_labeller.register_camera(
+            bottom_camera_topic,
+            PinholeCamera(
+                "auv4/bot_cam_optical",
+                1024,
+                768,
+                436.40875244140625, 467.6256103515625, 510.88065980075044, 376.3738157469634
+            ))
     rospy.spin()

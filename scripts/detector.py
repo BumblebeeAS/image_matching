@@ -67,6 +67,10 @@ class BasicFeatureMatcher:
             self.image_match_producer = get_keypoints_match_producer(
                 "orb", "bf", {"debug": True}, {"debug": True}
             )
+        elif matcher == "orb_flann":
+            image_match_producer = get_keypoints_match_producer(
+                "orb", "flann", {"debug": True}, {"debug": True}
+            )
         elif matcher_name == "alike_bf":
             self.image_match_producer = get_keypoints_match_producer(
                 "alike", "bf", {"debug": True}, {"debug": True}

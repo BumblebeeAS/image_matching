@@ -6,7 +6,7 @@
     "lid.jpg": [0.2032, 0.3556],
     "brown.jpeg": [0.2032, 0.3556],
     "chevron_blue.jpeg": [0.1524, 0.2286],
-    "chevron_red.jpeg": [0.1524, 0.2286],
+    "chevron.jpeg": [0.1524, 0.2286],
     "chevron_red.png": [0.1524, 0.2286],
     "earth_bin.jpeg": [0.3048, 0.6096],
     "2023_torpedo1.png": [1.2192, 1.2192],
@@ -16,5 +16,6 @@
     "torpedo_seg.png": [1.2192, 1.2192],
     "buoy_seg.png": [1.2192, 1.2192],
     "pole_seg.png": [2, 0.0762],
-    "gate_seg.png": [2, 1]
+    "gate_seg.png": [2, 1],
+    "DHD.jpg": [1.2192, 1.2192]
 }

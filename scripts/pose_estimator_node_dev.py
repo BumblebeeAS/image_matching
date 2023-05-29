@@ -215,8 +215,8 @@ class BasicPoseEstimator:
             None,
             1,  # min_buffer_size
             20,  # max_buffer_size
-            10,  # max_history,
             4, # min_matches
+            10,  # max_history,
             2,  # reprojection_error_threshold
         )
 
@@ -448,7 +448,7 @@ class BasicPoseEstimator:
         if len(kp1) < max(4, self.templates[template_name].min_matches):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
-                f"Invalid keypoints: Need at least max(4, self.templates[template_name].min_matches) pairs of keypoints"
+                f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
             )
         rot, trans = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
@@ -640,6 +640,10 @@ if __name__ == "__main__":
     elif matcher == "orb_bf":
         image_match_producer = get_keypoints_match_producer(
             "orb", "bf", {"debug": True}, {"debug": True}
+        )
+    elif matcher == "orb_flann":
+        image_match_producer = get_keypoints_match_producer(
+            "orb", "flann", {"debug": True}, {"debug": True}
         )
     elif matcher == "alike_bf":
         image_match_producer = get_keypoints_match_producer(
