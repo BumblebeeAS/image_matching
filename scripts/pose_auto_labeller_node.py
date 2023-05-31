@@ -177,6 +177,7 @@ class BasicPoseLabeller:
             except Exception as e:
                 rospy.logerr(e)
                 continue
+
             camera_stamp_poses[camera_frame_id] = (
                 msg.header.stamp,
                 compose(
@@ -192,6 +193,8 @@ class BasicPoseLabeller:
         for camera_frame in self.latest_msgs:
             img = images[camera_frame]
             vis = img.copy()
+            if not camera_frame in camera_stamp_poses:
+                continue
             camera_pose = camera_stamp_poses[camera_frame]
             image_height, image_width = images[camera_frame].shape[:2]
             image_polygon = Polygon([[0, 0], [image_width, 0],[image_width, image_height], [0, image_height]])
