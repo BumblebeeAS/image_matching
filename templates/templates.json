@@ -18,6 +18,7 @@
     "pole_seg.png": [2, 0.0762],
     "gate_seg.png": [2, 1],
     "DHD.jpg": [1.2192, 1.2192],
+    "DHD_rotated.jpg": [1.2192, 1.2192],
     "abydos0.png": [0.1524, 0.3048],
     "earth0.png": [0.1524, 0.3048],
     "abydos1.png": [0.6096, 0.6096],
@@ -25,5 +26,13 @@
     "earth1.png": [0.6096, 0.6096],
     "earth2.png": [0.6096, 0.6096],
     "buoy1.png": [1.2192, 1.2192],
-    "buoy2.png": [1.2192, 1.2192]
+    "buoy2.png": [1.2192, 1.2192],
+    "abydos3.png": [0.4, 0.4],
+    "abydos4.png": [0.4, 0.4],
+    "abydos5.png": [0.4, 0.4],
+    "abydos6.png": [0.4, 0.4],
+    "earth3.png": [0.4, 0.4],
+    "earth4.png": [0.4, 0.4],
+    "earth5.png": [0.4, 0.4],
+    "earth6.png": [0.4, 0.4]
 }
