@@ -133,8 +133,14 @@ def plot_matches(image0, image1, kpts0, kpts1, scores=None, layout="lr"):
         smin, smax = scores.min(), scores.max()
         assert 0 <= smin <= 1 and 0 <= smax <= 1
 
-        color = cm.gist_rainbow(scores * 0.4)
-        color = (np.array(color[:, :3]) * 255).astype(int)[:, ::-1]
+        unique_values = np.unique(scores)
+        if len(unique_values) == 2:
+            color = np.zeros((kpts0.shape[0], 3), dtype=int)
+            color[scores > 0.5, 1] = 255
+            color[scores <= 0.5, 2] = 255
+        else:
+            color = cm.gist_rainbow(scores * 0.4)
+            color = (np.array(color[:, :3]) * 255).astype(int)[:, ::-1]
     else:
         color = np.zeros((kpts0.shape[0], 3), dtype=int)
         color[:, 1] = 255
