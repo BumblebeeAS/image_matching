@@ -43,7 +43,7 @@ from bb_msgs.srv import (
 
 import threading
 from transforms3d.quaternions import mat2quat, quat2mat
-from transforms3d.euler import quat2euler, euler2quat
+from transforms3d.euler import quat2euler, euler2quat, mat2euler
 from transforms3d.affines import compose, decompose
 
 from feature_matcher.keypoints_match_producer\
