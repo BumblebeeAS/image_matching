@@ -383,9 +383,17 @@ class BasicPoseEstimator:
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
+                is_planar=True,  # Use homography to do rejection
                 max_reprojection_error=template.reprojection_error_threshold,
+
             )
             if rot is not None and trans is not None and trans[2] > 0:
+                yaw, pitch, roll = mat2euler(rot, axes="szyx")
+                rospy.loginfo_throttle(
+                    1,
+                    f"YPR: {np.rad2deg(yaw):.2f}, {np.rad2deg(pitch):.2f}, {np.rad2deg(roll):.2f}",
+                )
+
                 self.update_pose(
                     rot,
                     trans,
@@ -450,12 +458,15 @@ class BasicPoseEstimator:
                 False,
                 f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
             )
-        rot, trans = self.pose_estimator.compute_pose_from_keypoints(
+        rot, trans, _ = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
             camera_frame_id,
-            kp1, kp2,
-            debug=True,
-            max_reprojection_error=self.templates[template_name].reprojection_error_threshold,
+            kp1,
+            kp2,
+            is_planar=True,  # Use homography to do rejection
+            max_reprojection_error=self.templates[
+                template_name
+            ].reprojection_error_threshold,
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(

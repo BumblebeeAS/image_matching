@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import logging
 
 import cv2
@@ -8,38 +7,49 @@ from feature_matcher.keypoints_match_producer import (
     KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
-from feature_matcher.tools import (
-    create_show_image,
-    create_save_image,
-    plot_matches,
-)
+from feature_matcher.tools import create_show_image, plot_matches
 from pose_estimator.PinholeCamera import PinholeCamera
 
 
-def homography_to_pose(H: np.ndarray, use_svd=False):
-    # Normalization to ensure that ||c1|| = 1
-    norm = np.sqrt(H[0, 0] * H[0, 0] + H[1, 0] * H[1, 0] + H[2, 0] * H[2, 0])
-    H /= norm
-    c1 = H[:, 0]
-    c2 = H[:, 1]
-    c3 = np.cross(c1, c2)
+def homography_based_filter(
+    kp1,
+    kp2,
+    camera_matrix,
+    dist_coeffs,
+    min_inliers=6,
+):
+    if (kp1.shape[0] < min_inliers) or (kp2.shape[0] < min_inliers):
+        print("NOT ENOUGH POINTS -> Object not in view? ")
+        return None, None, None, None
 
-    tvec = H[:, 2]
+    kp1_undistort = cv2.undistortPoints(kp1.reshape(-1, 1, 2), np.eye(3), dist_coeffs)
+    kp2_undistort = cv2.undistortPoints(kp2.reshape(-1, 1, 2), np.eye(3), dist_coeffs)
 
-    # Get rough estimate of R
-    R_mat = np.zeros((3, 3))
-    for i in range(3):
-        R_mat[i, 0] = c1[i]
-        R_mat[i, 1] = c2[i]
-        R_mat[i, 2] = c3[i]
+    H, mask = cv2.findHomography(kp1_undistort, kp2_undistort, cv2.RANSAC)
+    if H is None or sum(mask) < min_inliers:
+        print("NO INLIERS")
+        return None, None, None, None
 
-    if use_svd:
-        U, _, Vt = np.linalg.svd(R_mat)
-        R_mat = U @ Vt
-        if np.linalg.det(R_mat) < 0:
-            R_mat *= -1
+    _, Rs, ts, ns = cv2.decomposeHomographyMat(H, camera_matrix)
+    for (R, tvec, n) in zip(Rs, ts, ns):
+        if n[2] > 0:  # Wrong direction -> skip
+            continue
+        if abs(n[2] + 1) > 0.1:  # Wrong normal -> skip
+            continue
 
-    return R_mat, tvec
+        # yaw, pitch, roll = mat2euler(R, axes="szyx")
+        # print("Yaw (H): ", rad2deg(yaw))
+        # print("Pitch (H): ", rad2deg(pitch))
+        # print("Roll (H): ", rad2deg(roll))
+
+        if mask is not None:
+            # bef = len(kp1)
+            kp1 = kp1[mask.ravel() == 1]
+            kp2 = kp2[mask.ravel() == 1]
+
+            # rospy.loginfo("Inliers (H): ", len(kp1), " / ", bef)
+            return kp1, kp2, R, tvec
+    return None, None, None, None
 
 
 class PoseEstimator:
@@ -87,10 +97,8 @@ class PoseEstimator:
         self,
         template,
         camera_frame,
-        keypoints1, # np.ndarray (x, y) * N
-        keypoints2, # np.ndarray (x, y) * N
-        debug=False,
-        logger=None,
+        keypoints1,  # np.ndarray (x, y) * N
+        keypoints2,  # np.ndarray (x, y) * N
         is_planar=False,  # If true, we assume object is planar => homography is used first
         max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
     ):
@@ -98,66 +106,46 @@ class PoseEstimator:
             raise Exception(f"Camera {camera_frame} not registered.")
         else:
             camera = self.cameras[camera_frame]
-        r_vec = None
-        t_vec = None
-        mask = None
+
+        R_H = None
+        t_H = None
         if is_planar:
             # Homography-based filtering
-            H, mask = cv2.findHomography(
-                keypoints1, keypoints2, cv2.RANSAC
+            kp1, kp2, R_H, t_H = homography_based_filter(
+                keypoints1,
+                keypoints2,
+                camera.camera_matrix(),
+                camera.dist_coeffs(),
+                min_inliers=self.min_inliers,
             )
-            if H is None or len(mask) < self.min_inliers:
-                print("NO INLIERS")
-                # logging.info("Not enough inliers.")
-                return None, None
-            R, t_vec = homography_to_pose(H, camera)
-            r_vec = cv2.Rodrigues(R)[0]
-            t_vec = t_vec.reshape((3, 1))
+            if kp1 is None or kp2 is None:
+                return None, None, None
 
         source_dimensions, source_image_size = self.templates[template]
-
         object_coord = (
-            (keypoints1 - source_image_size / 2)
-            * source_dimensions
-            / source_image_size
+            (keypoints1 - source_image_size / 2) * source_dimensions / source_image_size
         )
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
 
-        _, Rs, ts, errors = cv2.solvePnPGeneric(
+        _, rvec, t, inliers = cv2.solvePnPRansac(
             object_coord.astype(np.float64),
             keypoints2.astype(np.float32),
             camera.camera_matrix(),
             camera.dist_coeffs(),
-            rvec=r_vec,
-            tvec=t_vec,
-            useExtrinsicGuess=r_vec is not None and t_vec is not None,
+            useExtrinsicGuess=False,
             reprojectionError=max_reprojection_error,
             flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
         )
-        if len(Rs) > 1:
-            index_min = min(
-                range(len(errors)), key=lambda idx: errors.__getitem__(idx)[0]
-            )
-            Rs = [Rs[index_min]]
-            ts = [ts[index_min]]
-            errors = [errors[index_min]]
+        R = cv2.Rodrigues(rvec)[0]
+        t = t.squeeze()
 
-        R = Rs[0]
-        t = ts[0]
-        error = errors[0][0]
+        if R_H is not None:
+            r_diff = np.arccos((np.trace(R @ R_H.T) - 1) / 2)
+            if r_diff > 0.2:  # Radian -> 11 degrees
+                print(f"Homography vs PnP: {r_diff}, skipping")
+                return None, None, None
 
-        if error > max_reprojection_error:
-            print(
-                f"Error: {error} larger than maximum allowed {max_reprojection_error}. Dropping pose..."
-            )
-            return None, None
-        else:
-            print("Error: ", error)
-
-        R, t = cv2.solvePnPRefineVVS(
-            object_coord, keypoints2, camera.camera_matrix(), camera.dist_coeffs(), R, t
-        )
-        return cv2.Rodrigues(R)[0], t.squeeze()
+        return R, t, inliers
 
     def compute_pose(
         self,
@@ -169,7 +157,7 @@ class PoseEstimator:
         lxtyrxby=None,
         debug=False,
         logger=None,
-        is_planar=False,  # If true, we assume object is planar => homography is used first
+        is_planar=True,  # If true, we assume object is planar => homography is used first
         max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
     ):
         if template is None:
@@ -180,114 +168,65 @@ class PoseEstimator:
             camera = self.cameras[camera_frame]
 
         keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
-            img, template, debug, num_keypoints=num_keypoints, lxtyrxby=lxtyrxby, logger=logger
+            img,
+            template,
+            debug,
+            num_keypoints=num_keypoints,
+            lxtyrxby=lxtyrxby,
+            logger=logger,
         )
 
-        if keypoints1 is None or len(keypoints1) < 4:
-            logging.warning(
-                f"Not enough matches to compute pose. Found {0 if keypoints1 is None else len(keypoints1)} matches."
-            )
-            return None, None
-        else:
-            print(f"Num keypoints: {len(keypoints1)}")
-
-        if keypoints2 is None or len(keypoints2) < 4:
-            logging.warning(
-                f"Not enough matches to compute pose. Found {0 if keypoints2 is None else len(keypoints2)} matches."
-            )
-            return None, None
-
-        r_vec = None
-        t_vec = None
-        mask = None
-        if is_planar:
-            # Homography-based filtering
-            H, mask = cv2.findHomography(
-                keypoints1.keypoints, keypoints2.keypoints, cv2.RANSAC
-            )
-            if H is None or len(mask) < self.min_inliers:
-                print("NO INLIERS")
-                # logging.info("Not enough inliers.")
-                return None, None
-            R, t_vec = homography_to_pose(H, camera)
-            r_vec = cv2.Rodrigues(R)[0]
-            t_vec = t_vec.reshape((3, 1))
-
-        source_dimensions, source_image_size = self.templates[template]
-
-        object_coord = (
-            (keypoints1.keypoints - source_image_size / 2)
-            * source_dimensions
-            / source_image_size
+        R, t, inliers = self.compute_pose_from_keypoints(
+            template,
+            camera_frame,
+            keypoints1.keypoints,
+            keypoints2.keypoints,
+            is_planar=is_planar,
+            max_reprojection_error=max_reprojection_error,
         )
-        object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
-        kp2 = keypoints2.keypoints
 
-        _, Rs, ts, errors = cv2.solvePnPGeneric(
-            object_coord.astype(np.float64),
-            kp2.astype(np.float32),
-            camera.camera_matrix(),
-            camera.dist_coeffs(),
-            rvec=r_vec,
-            tvec=t_vec,
-            useExtrinsicGuess=r_vec is not None and t_vec is not None,
-            reprojectionError=max_reprojection_error,
-            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
-        )
-        if len(Rs) > 1:
-            index_min = min(
-                range(len(errors)), key=lambda idx: errors.__getitem__(idx)[0]
-            )
-            Rs = [Rs[index_min]]
-            ts = [ts[index_min]]
-            errors = [errors[index_min]]
-
-        R = Rs[0]
-        t = ts[0]
-        error = errors[0][0]
-
-        if error > max_reprojection_error:
-            print(
-                f"Error: {error} larger than maximum allowed {max_reprojection_error}. Dropping pose..."
-            )
-            return None, None
-        else:
-            print("Error: ", error)
-
-        R, t = cv2.solvePnPRefineVVS(
-            object_coord, kp2, camera.camera_matrix(), camera.dist_coeffs(), R, t
-        )
-        # print(f"t_z: {t.squeeze()[2]}, mask: {mask}")
-        # t_z = t.squeeze()[2]
-        # if t_z < 0 or t_z > 100 or mask is None or len(mask) < self.min_inliers:
-        #     logging.info("Not enough inliers.")
-        #     return None, None
-
-        # print("Passed inliers check.")
-
-        if debug:
+        if debug and R is not None and t is not None:
+            source_dimensions, _ = self.templates[template]
             _x = source_dimensions[0] / 2
             _y = source_dimensions[1] / 2
             object_rect = np.array(
                 [[-_x, -_y, 0], [_x, -_y, 0], [_x, _y, 0], [-_x, _y, 0]]
             )
-            # object_rect = np.array([[0, 0, 0], [_x, 0, 0], [_x, _y, 0], [0, _y, 0]])
+            # Draw object bbox
             img = self.draw_object_points(img, object_rect, R, t, camera)
+
+            # Draw axes
+            img = cv2.drawFrameAxes(
+                img,
+                camera.camera_matrix(),
+                camera.dist_coeffs(),
+                R,
+                t,
+                length=0.1,
+            )
+
+            mask = np.zeros(keypoints1.keypoints.shape[0], dtype=np.uint8)
+            if inliers is not None:
+                mask[inliers.squeeze()] = 1
+            else:
+                mask = np.ones(keypoints1.keypoints.shape[0], dtype=np.uint8)
+
             img = plot_matches(
                 self.keypoints_match_producer.get_template(template).img,
                 img,
                 keypoints1.keypoints,
-                kp2,
-                keypoints1.scores,
+                keypoints2.keypoints,
+                scores=mask,
             )
             # create_save_image("/home/nvidia/catkin_ws/src/image_matching/debug.png")(img)
             # exit(1)
             self.visualize(img)
-        return cv2.Rodrigues(R)[0], t.squeeze()
+        return R, t
 
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     import os
