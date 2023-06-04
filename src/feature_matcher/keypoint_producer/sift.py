@@ -12,7 +12,7 @@ class SiftKeypointProducer(KeypointProducer):
             self.num_keypoints,
             nOctaveLayers=3,
             contrastThreshold=0.04,
-            edgeThreshold=15,
+            edgeThreshold=10,
             sigma=1.6,
         )
 

@@ -8,11 +8,11 @@ from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
 class FlannKeypointMatcher(KeypointMatcher):
-    def __init__(self, config={"cross_check": True, "num_matches": 20}):
+    def __init__(self, config={"cross_check": True, "num_matches": 500}):
         self.matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
 
         # self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)
-        num_matches = config.get("num_matches", 50)
+        num_matches = config.get("num_matches", 500)
         if not isinstance(num_matches, int):
             raise ValueError("num_matches must be an integer")
         self.num_matches = num_matches
@@ -38,7 +38,7 @@ class FlannKeypointMatcher(KeypointMatcher):
         selected_matches = []
         matches1, matches2 = [], []
         # -- Filter matches using the Lowe's ratio test
-        ratio_thresh = 0.7
+        ratio_thresh = 0.5
         good_matches = []
         for m, n in matches:
             if m.distance < ratio_thresh * n.distance:

@@ -9,6 +9,7 @@ from feature_matcher.keypoints_match_producer import (
 )
 from feature_matcher.tools import create_show_image, plot_matches
 from pose_estimator.PinholeCamera import PinholeCamera
+from transforms3d.euler import mat2euler
 
 
 def homography_based_filter(
@@ -38,9 +39,9 @@ def homography_based_filter(
             continue
 
         # yaw, pitch, roll = mat2euler(R, axes="szyx")
-        # print("Yaw (H): ", rad2deg(yaw))
-        # print("Pitch (H): ", rad2deg(pitch))
-        # print("Roll (H): ", rad2deg(roll))
+        # print("Yaw (H): ", np.rad2deg(yaw))
+        # print("Pitch (H): ", np.rad2deg(pitch))
+        # print("Roll (H): ", np.rad2deg(roll))
 
         if mask is not None:
             # bef = len(kp1)
@@ -127,15 +128,19 @@ class PoseEstimator:
         )
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
 
-        _, rvec, t, inliers = cv2.solvePnPRansac(
-            object_coord.astype(np.float64),
-            keypoints2.astype(np.float32),
-            camera.camera_matrix(),
-            camera.dist_coeffs(),
-            useExtrinsicGuess=False,
-            reprojectionError=max_reprojection_error,
-            flags=cv2.SOLVEPNP_IPPE if is_planar else cv2.SOLVEPNP_ITERATIVE,
-        )
+        try:
+            _, rvec, t, inliers = cv2.solvePnPRansac(
+                object_coord.astype(np.float64),
+                keypoints2.astype(np.float32),
+                camera.camera_matrix(),
+                camera.dist_coeffs(),
+                useExtrinsicGuess=False,
+                reprojectionError=max_reprojection_error,
+                flags=cv2.SOLVEPNP_SQPNP,
+            )
+        except Exception as e:
+            print(e)
+            return None, None, None
         R = cv2.Rodrigues(rvec)[0]
         t = t.squeeze()
 
