@@ -383,7 +383,7 @@ class BasicPoseEstimator:
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
-                is_planar=True,  # Use homography to do rejection
+                is_planar=False,  # Use homography to do rejection
                 max_reprojection_error=template.reprojection_error_threshold,
 
             )
@@ -419,7 +419,7 @@ class BasicPoseEstimator:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False, f"Camera {camera_frame_id} not registered"
             )
-        if not template_name in self.templates:
+        if template_name not in self.templates:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False, f"Template {req.template_name} not registered"
             )
@@ -463,7 +463,7 @@ class BasicPoseEstimator:
             camera_frame_id,
             kp1,
             kp2,
-            is_planar=True,  # Use homography to do rejection
+            is_planar=False,
             max_reprojection_error=self.templates[
                 template_name
             ].reprojection_error_threshold,
@@ -476,6 +476,11 @@ class BasicPoseEstimator:
                 self.templates[template_name],
                 *camera_stamp_pose,
                 debug,
+            )
+        else: 
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, 
+                "Failed to compute pose!"
             )
         return IMPoseEstimatorUpdateKeypointMatchesResponse(
             True,

@@ -10,7 +10,7 @@ class SiftKeypointProducer(KeypointProducer):
         self.num_keypoints = config.get("num_keypoints", 500)
         self.sift = cv2.SIFT_create(
             self.num_keypoints,
-            nOctaveLayers=3,
+            nOctaveLayers=6,
             contrastThreshold=0.04,
             edgeThreshold=10,
             sigma=1.6,
