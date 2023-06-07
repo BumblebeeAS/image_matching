@@ -180,6 +180,8 @@ class PoseEstimator:
             lxtyrxby=lxtyrxby,
             logger=logger,
         )
+        print(len(keypoints1.keypoints))
+        print(len(keypoints2.keypoints))
 
         R, t, inliers = self.compute_pose_from_keypoints(
             template,
