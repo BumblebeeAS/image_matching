@@ -50,6 +50,7 @@ class Template:
 mutex = threading.Lock()
 
 class BasicPoseLabeller:
+    PADDING=0
     def __init__(
         self,
         autolabel: bool,
@@ -57,17 +58,21 @@ class BasicPoseLabeller:
     ):
         self.autolabel = autolabel
         self.annotations_dir = annotations_dir
+        print(autolabel, self.annotations_dir)
         if self.autolabel:
+            self.df = pd.DataFrame(columns=["stamp", "uuid", "dataset_creation_date", "camera_id", "tags", "extrinsics", "intrinsics", "width", "height", "detection_valid", "segmentation_valid"])
             os.makedirs(self.annotations_dir, exist_ok=True)
             os.makedirs(self.annotations_dir + "/images", exist_ok=True)
             os.makedirs(self.annotations_dir + "/detect", exist_ok=True)
             os.makedirs(self.annotations_dir + "/segment", exist_ok=True)
         self.latest_msgs: Dict[str, cv2.Mat] = {}
+        self.start_time = rospy.Time.now()
         self.bridge = CvBridge()
         self.templates: Dict[str, Template] = {}
         self.cameras: Dict[str, PinholeCamera] = {}
         self.subscribers = {}
         self.object_poses = {}
+        self.records = []
 
         self.front_visualization_pub = rospy.Publisher(
             front_visualization_topic, CompressedImage, queue_size=1
@@ -154,15 +159,20 @@ class BasicPoseLabeller:
                 polygon[:,1]/=img_h
                 f.write(f"{label} " + " ".join(map(str, list(polygon.flatten()))) +"\n")
         cv2.imwrite(os.path.join(self.annotations_dir, "images", image_name), image)
-        
 
+    def write_df(self):
+        df = pd.DataFrame.from_records(self.records)
+        df.to_csv(f"{self.annotations_dir}/data.csv")
     def cropped_image_callback(self, debug=True):
         images = {}
         camera_stamp_poses: Dict[Tuple[float, np.ndarray]] = {}
-        if len(self.object_poses) == 0 or len(self.latest_msgs) == 0:
-            return        
+        mutex.acquire(blocking=True)
+        latest_msgs = self.latest_msgs.copy()
+        mutex.release()
+        if len(self.object_poses) == 0 or len(latest_msgs) == 0:
+            return
         
-        for camera_frame_id, msg in self.latest_msgs.items():
+        for camera_frame_id, msg in latest_msgs.items():
             try:
                 img = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
             except CvBridgeError as e:
@@ -188,9 +198,10 @@ class BasicPoseLabeller:
                     np.ones(3),
                 ),
             )
+        
         if len(camera_stamp_poses) == 0:
             return
-        for camera_frame in self.latest_msgs:
+        for camera_frame in latest_msgs:
             img = images[camera_frame]
             vis = img.copy()
             if not camera_frame in camera_stamp_poses:
@@ -199,16 +210,18 @@ class BasicPoseLabeller:
             image_height, image_width = images[camera_frame].shape[:2]
             image_polygon = Polygon([[0, 0], [image_width, 0],[image_width, image_height], [0, image_height]])
             detections = []
+            stamp = rospy.Time.now()
+            stamp_str = str(stamp.secs) + str(stamp.nsecs)[0]
             for world_object in self.object_poses.values():
                 template_name = world_object.child_frame_id.split("_stabilized")[0]
                 if not template_name in self.templates:
                     print(f"{template_name} not found")
                     continue
                 width, height = attrgetter("width", "height")(self.templates[template_name])
-                point_coords = np.array([[-width / 2, -height / 2, 0, 1],
-                                      [width / 2, -height / 2, 0, 1],
-                                      [width / 2, height / 2, 0, 1],
-                                      [-width / 2, height / 2, 0, 1]])
+                point_coords = np.array([[-width / 2 - self.PADDING, -height / 2 - self.PADDING, 0, 1],
+                                      [width / 2 + self.PADDING, -height / 2 - self.PADDING, 0, 1],
+                                      [width / 2 + self.PADDING, height / 2 + self.PADDING, 0, 1],
+                                      [-width / 2 - self.PADDING, height / 2 + self.PADDING, 0, 1]])
                 
                 p, q = self.pose_to_pq(world_object.pose.pose)
                 
@@ -226,6 +239,8 @@ class BasicPoseLabeller:
                 world_points = world_points[:,:3] / world_points[:,3:]
 
                 image_points = cv2.projectPoints(world_points, camera_pose[1][:3, :3], camera_pose[1][:3, 3], self.cameras[camera_frame].camera_matrix(), self.cameras[camera_frame].dist_coeffs())
+
+                
 
                 try:
                     poly = image_polygon.intersection(Polygon(image_points[0][:,0]))
@@ -252,63 +267,36 @@ class BasicPoseLabeller:
                 cv2.circle(vis, (int(image_points[0][0][0][0]), int(image_points[0][0][0][1])), 5, (255, 0, 0), -1)
                 
                 detections.append((template_name, (cx, cy, w, h), coords))
+            tx, ty, tz = camera_pose[1][:3, 3].flatten()
+            qw, qx, qy, qz = mat2quat(camera_pose[1][:3, :3])
+            intrinsics = self.cameras[camera_frame].camera_matrix()
 
-            
+            self.records.append(
+                {
+                    "uuid": None,
+                    "tags": "",
+                    "stamp": stamp_str,
+                    "camera_id": 288 if camera_frame == "auv4/front_cam_optical" else 289,
+                    "width": image_width,
+                    "height": image_height,
+                    "dataset_creation_date": self.start_time,
+                    "extrinsics": ";".join(map(str,[tx,ty,tz,qw,qx,qy,qz])),
+                    "intrinsics": ";".join(map(str,[intrinsics[0][0], intrinsics[1][1], intrinsics[0][2], intrinsics[1][2]])),
+                    "detection_valid": False,
+                    "segmentation_valid": False
+                }
+            )
             self.save_image_labels_yolov8(img, detections)    
+
             {"auv4/front_cam_optical": self.front_visualization_pub,
              "auv4/bot_cam_optical": self.bot_visualization_pub}[camera_frame].publish(self.bridge.cv2_to_compressed_imgmsg(vis))
-
-
-                
-
-            
-        # for active_template in active_templates:
-        #     template_name, camera_frame_id = active_template
-        #     if camera_frame_id not in self.pose_estimator.available_cameras:
-        #         rospy.logerr(f"Camera {camera_frame_id} not registered")
-        #         continue
-        #     if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-        #         rospy.logerr(f"Camera {camera_frame_id} image not received")
-        #         continue
-        #     if template_name not in self.templates:
-        #         rospy.logerr(f"Template {template_name} not registered")
-        #         continue
-        #     if camera_frame_id not in camera_stamp_poses or len(camera_stamp_poses[camera_frame_id]) == 0:
-        #         rospy.logerr(f"No camera poses found for {camera_frame_id}")
-        #         continue
-        #     _s = camera_stamp_poses[camera_frame_id][0].secs
-        #     _ns = camera_stamp_poses[camera_frame_id][0].nsecs
-        #     rospy.logdebug_throttle(
-        #         10,
-        #         f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
-        #     )
-        #     template = self.templates[template_name]
-
-        #     rot, trans = self.pose_estimator.compute_pose(
-        #         images[camera_frame_id],
-        #         template_name,
-        #         camera_frame_id,
-        #         num_keypoints=300,
-        #         lxtyrxby=None,
-        #         debug=True,
-        #         max_reprojection_error=template.reprojection_error_threshold,
-        #     )
-        #     if rot is not None and trans is not None and trans[2] > 0:
-        #         self.update_pose(
-        #             rot,
-        #             trans,
-        #             camera_frame_id,
-        #             template,
-        #             *camera_stamp_poses[camera_frame_id],
-        #             debug,
-        #         )
-
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     rospy.init_node("pose_estimator_dev", anonymous=True)
+
+    output_folder = rospy.get_param("~output_folder", "")
     debug = rospy.get_param("~debug", False)
     if debug:
         debug_file = open(f"debug_poses.csv", "w")
@@ -336,15 +324,17 @@ if __name__ == "__main__":
     templates_dir = os.path.abspath(
         Path(RosPack().get_path("image_matching")) / "templates"
     )
-    annotations_dir = os.path.abspath(
-        Path(RosPack().get_path("image_matching")) / "annotations"
-    )
     # NOTE: template.json values are real world dimensions corresponding to
     # width and height of image: [width, height] in meters.
     templates = json.loads(open(
         os.path.join(templates_dir, "templates.json")).read())
-    
-    pose_labeller = BasicPoseLabeller(autolabel=rospy.get_param("~autolabel", False), annotations_dir=annotations_dir)
+    autolabel = rospy.get_param("~autolabel", False)
+    annotations_dir = rospy.get_param("~output_folder", "")
+    if autolabel and annotations_dir == "":
+        raise("Missing annotations dir")
+
+    pose_labeller = BasicPoseLabeller(autolabel=autolabel, annotations_dir=annotations_dir)
+    rospy.on_shutdown(pose_labeller.write_df)
     for template in templates.keys():
         template = os.path.splitext(template)[0]
         template_path = os.path.join(templates_dir, template)

@@ -43,7 +43,7 @@ from bb_msgs.srv import (
 
 import threading
 from transforms3d.quaternions import mat2quat, quat2mat
-from transforms3d.euler import quat2euler, euler2quat
+from transforms3d.euler import quat2euler, euler2quat, mat2euler
 from transforms3d.affines import compose, decompose
 
 from feature_matcher.keypoints_match_producer\
@@ -383,9 +383,17 @@ class BasicPoseEstimator:
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
+                is_planar=False,  # Use homography to do rejection
                 max_reprojection_error=template.reprojection_error_threshold,
+
             )
             if rot is not None and trans is not None and trans[2] > 0:
+                yaw, pitch, roll = mat2euler(rot, axes="szyx")
+                rospy.loginfo_throttle(
+                    1,
+                    f"YPR: {np.rad2deg(yaw):.2f}, {np.rad2deg(pitch):.2f}, {np.rad2deg(roll):.2f}",
+                )
+
                 self.update_pose(
                     rot,
                     trans,
@@ -411,7 +419,7 @@ class BasicPoseEstimator:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False, f"Camera {camera_frame_id} not registered"
             )
-        if not template_name in self.templates:
+        if template_name not in self.templates:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False, f"Template {req.template_name} not registered"
             )
@@ -450,12 +458,15 @@ class BasicPoseEstimator:
                 False,
                 f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
             )
-        rot, trans = self.pose_estimator.compute_pose_from_keypoints(
+        rot, trans, _ = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
             camera_frame_id,
-            kp1, kp2,
-            debug=True,
-            max_reprojection_error=self.templates[template_name].reprojection_error_threshold,
+            kp1,
+            kp2,
+            is_planar=False,
+            max_reprojection_error=self.templates[
+                template_name
+            ].reprojection_error_threshold,
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
@@ -465,6 +476,11 @@ class BasicPoseEstimator:
                 self.templates[template_name],
                 *camera_stamp_pose,
                 debug,
+            )
+        else: 
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, 
+                "Failed to compute pose!"
             )
         return IMPoseEstimatorUpdateKeypointMatchesResponse(
             True,
