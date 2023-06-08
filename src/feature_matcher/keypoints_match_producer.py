@@ -361,9 +361,10 @@ def get_keypoints_match_producer(
         return LoFTRMatchProducer(config)
 
     def get_coarse_loftr(config):
-        from feature_matcher.coarse_loftr_matcher import Coarse_LoFTRMatchProducer
+        from feature_matcher.kornia_loftr_matcher import Kornia_LoFTRMatchProducer
 
-        return Coarse_LoFTRMatchProducer(config)
+        # return Coarse_LoFTRMatchProducer(config)
+        return Kornia_LoFTRMatchProducer(config)
 
     def get_loftr_ts(config):
         from feature_matcher.loftr_torchscript_matcher import (
