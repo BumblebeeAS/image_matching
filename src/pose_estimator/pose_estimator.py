@@ -180,6 +180,10 @@ class PoseEstimator:
             lxtyrxby=lxtyrxby,
             logger=logger,
         )
+
+        if keypoints1 is None or keypoints2 is None: 
+            return None, None
+        
         print(len(keypoints1.keypoints))
         print(len(keypoints2.keypoints))
 
