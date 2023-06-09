@@ -238,6 +238,12 @@ class BasicPoseLabeller:
                 world_points = point_coords @ g.T
                 world_points = world_points[:,:3] / world_points[:,3:]
 
+                cam_z = np.array([0, 0, 1])
+                cam_z = np.linalg.inv(camera_pose[1][:3, :3]) @ cam_z.T
+                dir = world_points[0] - camera_pose[1][:3, 3]
+                if (np.dot(cam_z, dir) < 0):
+                    continue
+
                 image_points = cv2.projectPoints(world_points, camera_pose[1][:3, :3], camera_pose[1][:3, 3], self.cameras[camera_frame].camera_matrix(), self.cameras[camera_frame].dist_coeffs())
 
                 

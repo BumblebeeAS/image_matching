@@ -38,7 +38,7 @@ class FlannKeypointMatcher(KeypointMatcher):
         selected_matches = []
         matches1, matches2 = [], []
         # -- Filter matches using the Lowe's ratio test
-        ratio_thresh = 0.5
+        ratio_thresh = 0.75
         good_matches = []
         for m, n in matches:
             if m.distance < ratio_thresh * n.distance:

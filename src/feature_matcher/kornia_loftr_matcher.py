@@ -59,7 +59,6 @@ class Kornia_LoFTRMatchProducer(KeypointsMatchProducer):
         image_pts[:,0] *= float (w_other) / float(self.W)
         image_pts[:,1] *= float (h_other) / float(self.H)
 
-        print("Confidence")
         mconf = out['confidence'].detach().cpu().numpy().reshape(-1)
 
         # Normalize confidence.
