@@ -325,7 +325,7 @@ class BasicPoseEstimator:
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
-            rospy.loginfo_throttle(1, f"Received image from {camera_frame_id}")
+            rospy.loginfo_throttle(10, f"Received image from {camera_frame_id}")
             mutex.acquire(blocking=True)
             self.latest_msgs[camera_frame_id] = msg
             mutex.release()
@@ -710,6 +710,8 @@ if __name__ == "__main__":
     templates = json.loads(open(
         os.path.join(templates_dir, "templates.json")).read())
     for template in templates.keys():
+        if template.startswith("_"):
+            continue
         template = os.path.splitext(template)[0]
         template_path = os.path.join(templates_dir, template)
         possible_templates = glob.glob(os.path.join(templates_dir, f"{template}.*"))
@@ -723,6 +725,10 @@ if __name__ == "__main__":
         template_width = templates[template_filename][0]
         template_height = templates[template_filename][1]
         template_img = cv2.imread(template_path)
+        if template_img.shape[0] > 1000 or template_img.shape[1] > 1000:
+            rospy.logerr(
+                f"Template {template_path} is too large! Resize the image")
+            continue
         rospy.loginfo(
             f"Using template dimensions {template_width}x{template_height} \
 for template of size {template_img.shape[:2]}"
