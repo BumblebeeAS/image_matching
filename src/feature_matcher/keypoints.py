@@ -25,7 +25,10 @@ class Keypoints(np.ndarray):
         if descriptors is not None:
             to_be_stacked.append(descriptors)
 
-        obj = np.hstack(to_be_stacked).astype(np.float32).view(cls)
+        if len(scores) == 0:
+            obj = np.empty((0, 3)).astype(np.float32).view(cls)
+        else:
+            obj = np.hstack(to_be_stacked).astype(np.float32).view(cls)
         obj.image_size = image_size
         obj.has_descriptors = descriptors is not None
         return obj

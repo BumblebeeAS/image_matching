@@ -1,4 +1,5 @@
 import logging
+from typing import Callable, Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -54,22 +55,24 @@ def homography_based_filter(
 
 
 class PoseEstimator:
-    def __init__(self, keypoints_match_producer: KeypointsMatchProducer, debug=False):
-        self.keypoints_match_producer = keypoints_match_producer
-        self.visualize_callbacks = []
-        self.cameras = {}
-        self.templates = {}
+    def __init__(self, keypoints_match_producers: Dict[str, KeypointsMatchProducer], debug=False):
+        self.keypoints_match_producers = keypoints_match_producers
+        self.visualize_callbacks: List[Callable[[np.ndarray], None]] = []
+        self.cameras: Dict[str, PinholeCamera] = {}
+        self.templates: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         self.min_inliers = 6
         self.debug = debug
 
     def register_camera(self, camera: PinholeCamera):
         self.cameras[camera.frame_id] = camera
+        return camera.frame_id
 
     def register_template(self, name, world_dimensions, template_img):
         if "_seg" in name:
             print("Will not perform matching for segmentation templates")
         else:
-            self.keypoints_match_producer.register_template(name, template_img)
+            for producer in self.keypoints_match_producers.values():
+                producer.register_template(name, template_img)
         self.templates[name] = (
             np.array(world_dimensions),
             np.array(template_img.shape[1::-1]),
@@ -128,6 +131,9 @@ class PoseEstimator:
         )
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
 
+        if len(object_coord) < max(self.min_inliers, 4):
+            print("NOT ENOUGH POINTS " + str(len(object_coord)))
+            return None, None, None
         try:
             _, rvec, t, inliers = cv2.solvePnPRansac(
                 object_coord.astype(np.float64),
@@ -158,6 +164,7 @@ class PoseEstimator:
         template,
         camera_frame,
         *,
+        matcher="superpoint_superglue",
         num_keypoints=20,
         lxtyrxby=None,
         debug=False,
@@ -171,8 +178,10 @@ class PoseEstimator:
             raise Exception(f"Camera {camera_frame} not registered.")
         else:
             camera = self.cameras[camera_frame]
-
-        keypoints1, keypoints2 = self.keypoints_match_producer.process_image(
+        if matcher not in self.keypoints_match_producers.keys():
+            raise Exception(f"Matcher {matcher} not registered.")
+        keypoints_match_producer = self.keypoints_match_producers[matcher]
+        keypoints1, keypoints2 = keypoints_match_producer.process_image(
             img,
             template,
             debug,
@@ -185,7 +194,6 @@ class PoseEstimator:
             return None, None
         
         print(len(keypoints1.keypoints))
-        print(len(keypoints2.keypoints))
 
         R, t, inliers = self.compute_pose_from_keypoints(
             template,
@@ -223,7 +231,7 @@ class PoseEstimator:
                 mask = np.ones(keypoints1.keypoints.shape[0], dtype=np.uint8)
 
             img = plot_matches(
-                self.keypoints_match_producer.get_template(template).img,
+                keypoints_match_producer.get_template(template).img,
                 img,
                 keypoints1.keypoints,
                 keypoints2.keypoints,

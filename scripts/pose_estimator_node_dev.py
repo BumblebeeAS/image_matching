@@ -47,7 +47,7 @@ from transforms3d.euler import quat2euler, euler2quat, mat2euler
 from transforms3d.affines import compose, decompose
 
 from feature_matcher.keypoints_match_producer\
-    import get_keypoints_match_producer
+    import KeypointsMatchProducer, get_keypoints_match_producer
 from pose_estimator.pose_weighted_average\
     import get_kmeans_center
 from pose_estimator.PinholeCamera import PinholeCamera
@@ -68,6 +68,7 @@ class Image:
 class Template:
     name: str
     poses: pd.DataFrame
+    matcher: str
     computed_pose: Optional[PoseStamped]
     min_buffer_size: int
     max_buffer_size: int
@@ -75,11 +76,10 @@ class Template:
     max_history: float
     reprojection_error_threshold: float
 
-
 class BasicPoseEstimator:
     def __init__(
         self,
-        image_match_producer,
+        image_match_producers: Dict[str, KeypointsMatchProducer],
         visualization_topic,
         detected_objects_topic=None,
         templates_dir="./",
@@ -91,8 +91,8 @@ class BasicPoseEstimator:
         self.templates: Dict[str, Template] = {}
         self.templates_dir = templates_dir
 
-        self.image_match_producer = image_match_producer
-        self.pose_estimator = PoseEstimator(self.image_match_producer)
+        self.image_match_producers = image_match_producers
+        self.pose_estimator = PoseEstimator(image_match_producers)
 
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
@@ -150,15 +150,20 @@ class BasicPoseEstimator:
 
         self.PADDING = 10
 
-        self.subscribers = {}
-        rospy.Timer(rospy.Duration(0.05), self.cropped_image_callback)
+        self.subscribers: Dict[str, rospy.Subscriber] = {}
+        rospy.Timer(rospy.Duration(0.1), self.cropped_image_callback)
 
     def update_config(self, req):
         template_name = req.template_name
-
-        if template_name not in self.pose_estimator.available_templates:
+        matcher = req.matcher
+        if template_name not in self.templates.keys():
             self.templates[template_name] = self.create_default_template(template_name)
             rospy.logerr(f"Template {template_name} not registered")
+            return IMPoseEstimatorConfigResponse(False)
+
+        if matcher not in self.image_match_producers.keys():
+            rospy.logerr(f"Matcher {matcher} not loaded")
+            return IMPoseEstimatorConfigResponse(False)
 
         setattr(self.templates[template_name], "reprojection_error_threshold",
                 req.max_reprojection_threshold)
@@ -166,6 +171,7 @@ class BasicPoseEstimator:
         setattr(self.templates[template_name], "min_buffer_size", req.min_buffer_size)
         setattr(self.templates[template_name], "max_buffer_size", req.max_buffer_size)
         setattr(self.templates[template_name], "min_matches", req.min_matches)
+        setattr(self.templates[template_name], "matcher", matcher)
 
         if req.reset:
             self.templates[template_name].poses = pd.DataFrame(
@@ -175,10 +181,13 @@ class BasicPoseEstimator:
         return IMPoseEstimatorConfigResponse(success=True)
 
     def get_templates(self, req):
+        active_templates = list(set([template_name for template_name,
+                      _ in self.active_templates]))
+        active_templates = [template_name + ": " + self.templates[template_name].matcher for template_name in active_templates]
         return IMPoseEstimatorGetTemplatesResponse(
             self.pose_estimator.available_templates,
-            list(set([template_name for template_name,
-                      _ in self.active_templates])),
+            active_templates,
+            list(self.image_match_producers.keys()),
         )
 
     def toggle_template(self, req):
@@ -212,6 +221,7 @@ class BasicPoseEstimator:
             name,
             pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
+            "sift_flann",
             None,
             1,  # min_buffer_size
             20,  # max_buffer_size
@@ -222,7 +232,7 @@ class BasicPoseEstimator:
 
     def get_status(self, req: IMPoseEstimatorGetStatusRequest):
         res = IMPoseEstimatorGetStatusResponse()
-        if req.template_name not in self.templates:
+        if req.template_name not in self.templates.keys():
             res.is_valid = False
             return res
         template = self.templates[req.template_name]
@@ -292,7 +302,7 @@ class BasicPoseEstimator:
                 ),
                 cv2_img,
             )
-            if req.template_name in self.pose_estimator.available_templates:
+            if req.template_name in self.templates:
                 rospy.loginfo("Replacing existing template %s",
                               req.template_name)
             self.register_template(
@@ -315,6 +325,7 @@ class BasicPoseEstimator:
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
+            rospy.loginfo_throttle(1, f"Received image from {camera_frame_id}")
             mutex.acquire(blocking=True)
             self.latest_msgs[camera_frame_id] = msg
             mutex.release()
@@ -322,6 +333,7 @@ class BasicPoseEstimator:
         return callback
 
     def cropped_image_callback(self, debug=True):
+        rospy.loginfo_throttle(5, self.active_templates)
         mutex.acquire(blocking=True)
         images = {}
         camera_stamp_poses: Dict[Tuple[float, np.ndarray]] = {}
@@ -335,7 +347,7 @@ class BasicPoseEstimator:
             try:
                 camera_tf = self.tf_buffer.lookup_transform(
                     "world_ned", camera_frame_id, msg.header.stamp,
-                    rospy.Duration(2)
+                    rospy.Duration(0)
                 )
             except Exception as e:
                 rospy.logerr(e)
@@ -380,6 +392,7 @@ class BasicPoseEstimator:
                 images[camera_frame_id],
                 template_name,
                 camera_frame_id,
+                matcher = template.matcher,
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
@@ -629,55 +642,63 @@ if __name__ == "__main__":
 
     matcher = rospy.get_param("~matcher", "superpoint_superglue")
 
-    if matcher == "coarse_loftr":
-        image_match_producer = get_keypoints_match_producer(
-            None, "coarse_loftr", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "sift_flann":
-        image_match_producer = get_keypoints_match_producer(
-            "sift", "flann", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "sift_bf":
-        image_match_producer = get_keypoints_match_producer(
-            "sift", "bf", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "superpoint_bf":
-        image_match_producer = get_keypoints_match_producer(
-            "superpoint", "bf", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "superpoint_superglue":
-        image_match_producer = get_keypoints_match_producer(
-            "superpoint", "superglue", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "fast_bf":
-        image_match_producer = get_keypoints_match_producer(
-            "fast", "bf", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "orb_bf":
-        image_match_producer = get_keypoints_match_producer(
-            "orb", "bf", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "orb_flann":
-        image_match_producer = get_keypoints_match_producer(
-            "orb", "flann", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "alike_bf":
-        image_match_producer = get_keypoints_match_producer(
-            "alike", "bf", {"debug": True}, {"debug": True}
-        )
-    elif matcher == "dkm":
-        image_match_producer = get_keypoints_match_producer(
-            None, "dkm", {"debug": True}, {"debug": True}
-        )
-    else:
-        raise NotImplementedError(f"Matcher {matcher} unimplemented!")
-
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
         Path(RosPack().get_path("image_matching")) / "templates"
     )
+
+
+    def get_matcher(matcher):
+        if matcher == "coarse_loftr":
+            image_match_producer = get_keypoints_match_producer(
+                None, "coarse_loftr", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "sift_flann":
+            image_match_producer = get_keypoints_match_producer(
+                "sift", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "sift_bf":
+            image_match_producer = get_keypoints_match_producer(
+                "sift", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "superpoint_bf":
+            image_match_producer = get_keypoints_match_producer(
+                "superpoint", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "superpoint_superglue":
+            image_match_producer = get_keypoints_match_producer(
+                "superpoint", "superglue", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "fast_bf":
+            image_match_producer = get_keypoints_match_producer(
+                "fast", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "orb_bf":
+            image_match_producer = get_keypoints_match_producer(
+                "orb", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "orb_flann":
+            image_match_producer = get_keypoints_match_producer(
+                "orb", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "alike_bf":
+            image_match_producer = get_keypoints_match_producer(
+                "alike", "bf", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "dkm":
+            image_match_producer = get_keypoints_match_producer(
+                None, "dkm", {"debug": True}, {"debug": True}
+            )
+        else:
+            raise NotImplementedError(f"Matcher {matcher} unimplemented!")
+        return image_match_producer
+    matchers = {}
+    matchers["sift_flann"] = get_matcher("sift_flann")
+    matchers["superpoint_superglue"] = get_matcher("superpoint_superglue")
+    if matcher not in matchers:
+        matchers[matcher] = get_matcher(matcher)
     pose_estimator = BasicPoseEstimator(
-        image_match_producer,
+        matchers,
         visualization_topic,
         detected_objects_topic,
         templates_dir,
@@ -728,7 +749,7 @@ for template of size {template_img.shape[:2]}"
     except:
         rospy.logwarn("Front camera not found! Using default")
         pose_estimator.register_camera(
-            bottom_camera_topic,
+            front_camera_topic,
             PinholeCamera(
                 "auv4/front_cam_optical",
                 1024,
