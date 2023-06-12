@@ -60,7 +60,7 @@ class PoseEstimator:
         self.visualize_callbacks: List[Callable[[np.ndarray], None]] = []
         self.cameras: Dict[str, PinholeCamera] = {}
         self.templates: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
-        self.min_inliers = 6
+        self.min_inliers = 4
         self.debug = debug
 
     def register_camera(self, camera: PinholeCamera):
@@ -132,7 +132,7 @@ class PoseEstimator:
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
 
         if len(object_coord) < max(self.min_inliers, 4):
-            print("NOT ENOUGH POINTS " + str(len(object_coord)))
+            print("NOT ENOUGH POINTS " + str(len(object_coord)), str(max(self.min_inliers, 4)))
             return None, None, None
         try:
             _, rvec, t, inliers = cv2.solvePnPRansac(
