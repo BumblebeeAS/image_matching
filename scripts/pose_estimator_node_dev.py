@@ -480,6 +480,7 @@ class BasicPoseEstimator:
             max_reprojection_error=self.templates[
                 template_name
             ].reprojection_error_threshold,
+            debug=self.debug
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
@@ -746,7 +747,7 @@ for template of size {template_img.shape[:2]}"
     try:
         if front_camera_topic is not None and front_camera_info_topic is not None:
             front_camera_info = rospy.wait_for_message(front_camera_info_topic,
-                                                    CameraInfo, timeout=1)
+                                                    CameraInfo, timeout=5)
             pose_estimator.register_camera(
                 front_camera_topic,
                 PinholeCamera.from_camera_info(front_camera_info,
@@ -767,7 +768,7 @@ for template of size {template_img.shape[:2]}"
                 bottom_camera_info_topic is not None:
             bottom_camera_info = rospy.wait_for_message(
                 bottom_camera_info_topic, CameraInfo
-                , timeout=1
+                , timeout=5
             )
             pose_estimator.register_camera(
                 bottom_camera_topic,
