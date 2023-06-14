@@ -151,7 +151,7 @@ class BasicPoseEstimator:
         self.PADDING = 10
 
         self.subscribers: Dict[str, rospy.Subscriber] = {}
-        rospy.Timer(rospy.Duration(0.1), self.cropped_image_callback)
+        rospy.Timer(rospy.Duration(0.3), self.cropped_image_callback)
 
     def update_config(self, req):
         template_name = req.template_name
@@ -347,7 +347,7 @@ class BasicPoseEstimator:
             try:
                 camera_tf = self.tf_buffer.lookup_transform(
                     "world_ned", camera_frame_id, msg.header.stamp,
-                    rospy.Duration(0)
+                    rospy.Duration(2)
                 )
             except Exception as e:
                 rospy.logerr(e)
