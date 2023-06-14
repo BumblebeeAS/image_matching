@@ -105,6 +105,7 @@ class PoseEstimator:
         keypoints2,  # np.ndarray (x, y) * N
         is_planar=False,  # If true, we assume object is planar => homography is used first
         max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
+        debug=False,
     ):
         if camera_frame not in self.cameras:
             raise Exception(f"Camera {camera_frame} not registered.")
@@ -156,6 +157,15 @@ class PoseEstimator:
                 print(f"Homography vs PnP: {r_diff}, skipping")
                 return None, None, None
 
+        if debug and R is not None and t is not None:
+            img = np.zeros((camera.height, camera.width, 3), dtype=np.uint8)
+            img = plot_matches(
+                np.zeros((*source_image_size, 3), dtype=np.uint8),
+                img,
+                keypoints1,
+                keypoints2,
+            )
+            self.visualize(img)
         return R, t, inliers
 
     def compute_pose(
