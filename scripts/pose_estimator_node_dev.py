@@ -525,6 +525,17 @@ class BasicPoseEstimator:
         object_quat = mat2quat(R)
 
         x, y, z = T
+
+        if any(np.isnan([x, y, z, *object_quat])) or any(
+            np.isinf([x, y, z, *object_quat])
+        ) or any(np.abs([x, y, z]) > 10000):
+            rospy.logwarn_throttle(
+                1,
+                f"Invalid pose estimate for {template.name} in {frame_id}: \
+{x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
+            )
+            return
+
         qw, qx, qy, qz = object_quat
         template.poses.loc[len(template.poses)] = [
             stamp.secs, x, y, z, qw, qx, qy, qz
