@@ -398,8 +398,9 @@ class BasicPoseEstimator:
                 debug=True,
                 is_planar=False,  # Use homography to do rejection
                 max_reprojection_error=template.reprojection_error_threshold,
-
+                min_matches=template.min_matches
             )
+            print(rot, trans, template_name)
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
                 rospy.loginfo_throttle(
@@ -466,6 +467,7 @@ class BasicPoseEstimator:
                 f"Invalid keypoints: got different numbers of correspondences: \
 {len(kp1)}, {len(kp2)}"
             )
+        print(kp1, template_name, self.templates[template_name])
         if len(kp1) < max(4, self.templates[template_name].min_matches):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
@@ -557,6 +559,7 @@ class BasicPoseEstimator:
             )
             template.poses = template.poses.iloc[-template.max_buffer_size:]
         template.poses.reset_index(drop=True, inplace=True)
+        print(template.poses)
         if self.debug:
             global debug_file
             debug_file.write(
@@ -588,7 +591,6 @@ class BasicPoseEstimator:
         transform_stamped.transform.translation = Vector3(*fused_pose[:3])
         qw, qx, qy, qz = fused_pose[3:]
         transform_stamped.transform.rotation = Quaternion(qx, qy, qz, qw)
-
 
         self.br.sendTransform(transform_stamped)
         transform_zeroed = transform_stamped
