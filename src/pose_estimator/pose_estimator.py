@@ -160,7 +160,7 @@ class PoseEstimator:
         if debug and R is not None and t is not None:
             img = np.zeros((camera.height, camera.width, 3), dtype=np.uint8)
             img = plot_matches(
-                np.zeros((*source_image_size, 3), dtype=np.uint8),
+                np.zeros((source_image_size[1], source_image_size[0], 3), dtype=np.uint8),
                 img,
                 keypoints1,
                 keypoints2,

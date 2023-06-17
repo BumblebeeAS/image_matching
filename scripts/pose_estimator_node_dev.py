@@ -347,7 +347,7 @@ class BasicPoseEstimator:
             try:
                 camera_tf = self.tf_buffer.lookup_transform(
                     "world_ned", camera_frame_id, msg.header.stamp,
-                    rospy.Duration(0)
+                    rospy.Duration(2)
                 )
             except Exception as e:
                 rospy.logerr(e)
