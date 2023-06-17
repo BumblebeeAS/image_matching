@@ -467,7 +467,6 @@ class BasicPoseEstimator:
                 f"Invalid keypoints: got different numbers of correspondences: \
 {len(kp1)}, {len(kp2)}"
             )
-        print(kp1, template_name, self.templates[template_name])
         if len(kp1) < max(4, self.templates[template_name].min_matches):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
@@ -559,7 +558,6 @@ class BasicPoseEstimator:
             )
             template.poses = template.poses.iloc[-template.max_buffer_size:]
         template.poses.reset_index(drop=True, inplace=True)
-        print(template.poses)
         if self.debug:
             global debug_file
             debug_file.write(
