@@ -37,7 +37,13 @@
     "earth5.png": [0.4, 0.4],
     "earth6.png": [0.4, 0.4],
     "bin_abydos_1.png": [0.3048, 0.6096],
+    "bin_abydos_1_part-0.png": [0.3048, 0.2032],
+    "bin_abydos_1_part-1.png": [0.3048, 0.2032],
+    "bin_abydos_1_part-2.png": [0.3048, 0.2032],
     "bin_abydos_2.png": [0.3048, 0.6096],
     "bin_earth_1.png": [0.3048, 0.6096],
+    "bin_earth_1_part-0.png": [0.3048, 0.2032],
+    "bin_earth_1_part-1.png": [0.3048, 0.2032],
+    "bin_earth_1_part-2.png": [0.3048, 0.2032],
     "bin_earth_2.png": [0.3048, 0.6096]
 }
