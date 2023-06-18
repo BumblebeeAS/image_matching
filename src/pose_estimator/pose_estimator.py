@@ -105,6 +105,7 @@ class PoseEstimator:
         keypoints2,  # np.ndarray (x, y) * N
         is_planar=False,  # If true, we assume object is planar => homography is used first
         max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
+        min_matches=4,
         debug=False,
     ):
         if camera_frame not in self.cameras:
@@ -121,7 +122,7 @@ class PoseEstimator:
                 keypoints2,
                 camera.camera_matrix(),
                 camera.dist_coeffs(),
-                min_inliers=self.min_inliers,
+                min_inliers=min_matches,
             )
             if kp1 is None or kp2 is None:
                 return None, None, None
@@ -132,9 +133,11 @@ class PoseEstimator:
         )
         object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
 
-        if len(object_coord) < max(self.min_inliers, 4):
-            print("NOT ENOUGH POINTS " + str(len(object_coord)), str(max(self.min_inliers, 4)))
+        if len(object_coord) < max(min_matches, 4):
+            print("NOT ENOUGH POINTS " + str(len(object_coord)), str(max(min_matches, 4)))
             return None, None, None
+        else:
+            print("Enough points", str(len(object_coord)))
         try:
             _, rvec, t, inliers = cv2.solvePnPRansac(
                 object_coord.astype(np.float64),
@@ -160,7 +163,7 @@ class PoseEstimator:
         if debug and R is not None and t is not None:
             img = np.zeros((camera.height, camera.width, 3), dtype=np.uint8)
             img = plot_matches(
-                np.zeros((*source_image_size, 3), dtype=np.uint8),
+                np.zeros((source_image_size[1], source_image_size[0], 3), dtype=np.uint8),
                 img,
                 keypoints1,
                 keypoints2,
@@ -181,6 +184,7 @@ class PoseEstimator:
         logger=None,
         is_planar=True,  # If true, we assume object is planar => homography is used first
         max_reprojection_error=2.0,  # Maximum reprojection error for pose to be accepted
+        min_matches=4,
     ):
         if template is None:
             raise Exception("Template has to be specified.")
@@ -211,6 +215,7 @@ class PoseEstimator:
             keypoints1.keypoints,
             keypoints2.keypoints,
             is_planar=is_planar,
+            min_matches=min_matches,
             max_reprojection_error=max_reprojection_error,
         )
 
