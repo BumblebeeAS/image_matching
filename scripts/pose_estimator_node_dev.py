@@ -85,9 +85,9 @@ def filter_forward_facing(pose):
     if pose[2] < -2 or pose[2] > 10:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    r, p, y = np.rad2deg(quat2euler(pose[3:]))
-    if abs((r % 180) - 90)  > 10:
-        rospy.logwarn_throttle(1, "Not vertical")
+    r, p, y = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
+    if abs((y % 180) - 90)  > 40:
+        rospy.logwarn(f"Not vertical {r} {p} {y}")
         return False    
     return True
 
@@ -95,9 +95,9 @@ def filter_bottom_facing(pose):
     if pose[2] < -2 or pose[2] > 10:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    r, p, y = quat2euler(pose[3:])
-    if (p > np.pi/4 and p < 7 * np.pi/4) \
-            or (y > np.pi/4 and y < 7 * np.pi/4):
+    r, p, y = quat2euler(pose[3:], 'rzyx')
+    if (y > np.pi/4 and y < 7 * np.pi/4) \
+            or (p > np.pi/4 and p < 7 * np.pi/4):
         rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
         return False    
     return True
@@ -391,7 +391,6 @@ class BasicPoseEstimator:
                 dtype=cv2.CV_32F,
             )
             img = (255 * img).astype(np.uint8)
-            img=self.equalize_green_blue(img)
             new_msg = bridge.cv2_to_compressed_imgmsg(img)
 
             mutex.acquire(blocking=True)
