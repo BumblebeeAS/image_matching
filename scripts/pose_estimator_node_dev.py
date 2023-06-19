@@ -11,7 +11,7 @@ import copy
 
 import cv2
 import pandas as pd
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple, Callable
 import numpy as np
 import rospy
 import tf2_ros
@@ -75,6 +75,33 @@ class Template:
     min_matches: int
     max_history: float
     reprojection_error_threshold: float
+
+
+def filter_forward_facing(pose):
+    """
+    Given pose np.array([x,y,z,qw,qx,qy,qz])
+    return True if valid pose else False
+    """
+    if pose[2] < -2 or pose[2] > 10:
+        rospy.logwarn_throttle(1, "Rubbish z")
+        return False
+    r, p, y = np.rad2deg(quat2euler(pose[3:]))
+    if abs((r % 180) - 90)  > 10:
+        rospy.logwarn_throttle(1, "Not vertical")
+        return False    
+    return True
+
+def filter_bottom_facing(pose):
+    if pose[2] < -2 or pose[2] > 10:
+        rospy.logwarn_throttle(1, "Rubbish z")
+        return False
+    r, p, y = quat2euler(pose[3:])
+    if (p > np.pi/4 and p < 7 * np.pi/4) \
+            or (y > np.pi/4 and y < 7 * np.pi/4):
+        rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
+        return False    
+    return True
+
 
 class BasicPoseEstimator:
     def __init__(
@@ -152,6 +179,13 @@ class BasicPoseEstimator:
 
         self.subscribers: Dict[str, rospy.Subscriber] = {}
         rospy.Timer(rospy.Duration(0.3), self.cropped_image_callback)
+        self.custom_pose_filtering: Dict[str,
+                                         Callable[[np.array], bool]] = {
+            "buoy_seg": filter_forward_facing,
+            "gate_seg": filter_forward_facing,
+            "torpedo_seg": filter_forward_facing,
+            # "bin": filter_bottom_facing
+        }
 
     def update_config(self, req):
         template_name = req.template_name
@@ -527,8 +561,9 @@ class BasicPoseEstimator:
 
         x, y, z = T
 
-        if any(np.isnan([x, y, z, *object_quat])) or any(
-            np.isinf([x, y, z, *object_quat])
+        pose = np.array([x, y, z, *object_quat])
+        if any(np.isnan(pose)) or any(
+            np.isinf(pose)
         ) or any(np.abs([x, y, z]) > 10000):
             rospy.logwarn_throttle(
                 1,
@@ -536,10 +571,18 @@ class BasicPoseEstimator:
 {x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
             )
             return
+        
+        if template.name in self.custom_pose_filtering and not self.custom_pose_filtering[template.name](pose):
+            rospy.logwarn_throttle(
+                1,
+                f"Invalid pose estimate for {template.name} based on custom filter",
+            )
+            return
+
 
         qw, qx, qy, qz = object_quat
         template.poses.loc[len(template.poses)] = [
-            stamp.secs, x, y, z, qw, qx, qy, qz
+            stamp.secs, *pose
         ]
         if len(template.poses) > template.min_buffer_size:
             old_rows = template.poses.iloc[
