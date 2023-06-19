@@ -287,6 +287,17 @@ class BasicPoseEstimator:
         self.pose_estimator.register_template(name, dimensions, img)
         self.templates[name] = BasicPoseEstimator.create_default_template(name)
 
+    @staticmethod
+    def equalize_green_blue(img):
+        b, g, r = cv2.split(img)
+
+        g_eq = cv2.equalizeHist(g)
+        b_eq = cv2.equalizeHist(b)
+
+        img_eq = cv2.merge((b_eq, g_eq, r))
+
+        return img_eq
+
     def register_template_cb(self,
                              req: IMPoseEstimatorRegisterTemplateRequest):
         compressed_image_topic_name = req.image_topic_name
@@ -358,10 +369,33 @@ class BasicPoseEstimator:
         self.pose_estimator.register_camera(camera)
 
     def msg_callback(self, camera_frame_id):
+        bridge = CvBridge()
+        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
+    
         def callback(msg):
             rospy.loginfo_throttle(10, f"Received image from {camera_frame_id}")
+            img = bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
+
+            # CLAHE to L in LAB space
+            lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            lab_img[:, :, 0] = clahe.apply(lab_img[:, :, 0])
+            img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
+
+            # Contrast Normalization
+            img = cv2.normalize(
+                img,
+                None,
+                alpha=0,
+                beta=1.0,
+                norm_type=cv2.NORM_MINMAX,
+                dtype=cv2.CV_32F,
+            )
+            img = (255 * img).astype(np.uint8)
+            img=self.equalize_green_blue(img)
+            new_msg = bridge.cv2_to_compressed_imgmsg(img)
+
             mutex.acquire(blocking=True)
-            self.latest_msgs[camera_frame_id] = msg
+            self.latest_msgs[camera_frame_id] = new_msg
             mutex.release()
 
         return callback
