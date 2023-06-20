@@ -376,21 +376,21 @@ class BasicPoseEstimator:
             rospy.loginfo_throttle(10, f"Received image from {camera_frame_id}")
             img = bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
 
-            # CLAHE to L in LAB space
-            lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            lab_img[:, :, 0] = clahe.apply(lab_img[:, :, 0])
-            img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
+            # # CLAHE to L in LAB space
+            # lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            # lab_img[:, :, 0] = clahe.apply(lab_img[:, :, 0])
+            # img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
 
-            # Contrast Normalization
-            img = cv2.normalize(
-                img,
-                None,
-                alpha=0,
-                beta=1.0,
-                norm_type=cv2.NORM_MINMAX,
-                dtype=cv2.CV_32F,
-            )
-            img = (255 * img).astype(np.uint8)
+            # # Contrast Normalization
+            # img = cv2.normalize(
+            #     img,
+            #     None,
+            #     alpha=0,
+            #     beta=1.0,
+            #     norm_type=cv2.NORM_MINMAX,
+            #     dtype=cv2.CV_32F,
+            # )
+            # img = (255 * img).astype(np.uint8)
             new_msg = bridge.cv2_to_compressed_imgmsg(img)
 
             mutex.acquire(blocking=True)
