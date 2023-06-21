@@ -76,7 +76,6 @@ class Template:
     max_history: float
     reprojection_error_threshold: float
 
-
 def filter_forward_facing(pose):
     """
     Given pose np.array([x,y,z,qw,qx,qy,qz])
@@ -95,12 +94,16 @@ def filter_bottom_facing(pose):
     if pose[2] < 0 or pose[2] > 3:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    y, p, r = quat2euler(pose[3:], 'rzyx')
-    if (r >= np.pi/4 and r <= 7 * np.pi/4) \
-            or (p >= np.pi/4 and p <= 7 * np.pi/4):
+    y, p, r = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
+    if r >= 45 or r <= -45 or p >= 45 or p <= -45:
         rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
         return False
     return True
+
+def process_buoy_pose(pose):
+    r, p, y = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
+    print(r, p, y)
+    return pose
 
 
 class BasicPoseEstimator:
@@ -191,6 +194,10 @@ class BasicPoseEstimator:
             "bin_earth_1_part-1": filter_bottom_facing,
             "bin_earth_1_part-2": filter_bottom_facing,
         }
+        self.custom_pose_transform: Dict[str, Callable[[np.array], np.array]] = {
+            "buoy1": process_buoy_pose,
+            "buoy2": process_buoy_pose
+        }
 
     def update_config(self, req):
         template_name = req.template_name
@@ -230,6 +237,14 @@ class BasicPoseEstimator:
         )
 
     def toggle_template(self, req):
+        if req.template_name == "" and req.enabled == False:
+            print("Disabling all templates")
+            self.active_templates.clear()
+            return IMPoseEstimatorToggleTemplateResponse(
+                False,
+                "All templates disabled"
+            )
+
         if req.template_name not in self.pose_estimator.available_templates:
             return IMPoseEstimatorToggleTemplateResponse(
                 False, f"Template {req.template_name} not registered"
@@ -678,6 +693,12 @@ class BasicPoseEstimator:
         r, p, y = quat2euler(fused_pose[3:], axes='rzyx')
         new_r, new_p, new_y = r, np.round(p / rangle) * rangle, np.round(y / rangle) * rangle
         qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
+        # if template.name in ["buoy1", "buoy2"]:
+        #     r, p, y = quat2euler(np.array([qw, qx, qy, qz]), axes='rzyx')
+        #     new_r, new_p, new_y = r, np.round(p / rangle) * rangle, np.round(y / rangle) * rangle
+        #     qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
+            
+
         transform_zeroed.transform.rotation = Quaternion(qx, qy, qz, qw)
         transform_zeroed.child_frame_id = template.name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
@@ -782,11 +803,16 @@ if __name__ == "__main__":
             image_match_producer = get_keypoints_match_producer(
                 None, "dkm", {"debug": True}, {"debug": True}
             )
+        elif matcher == "keyaffhard_flann":
+            image_match_producer = get_keypoints_match_producer(
+            "keyaffhard", "flann", {"debug": True}, {"debug": True}
+            )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
         return image_match_producer
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
+    matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
     matchers["superpoint_superglue"] = get_matcher("superpoint_superglue")
     if matcher not in matchers:
         matchers[matcher] = get_matcher(matcher)
