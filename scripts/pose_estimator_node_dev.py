@@ -88,18 +88,18 @@ def filter_forward_facing(pose):
     r, p, y = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
     if abs((y % 180) - 90)  > 40:
         rospy.logwarn(f"Not vertical {r} {p} {y}")
-        return False    
+        return False
     return True
 
 def filter_bottom_facing(pose):
-    if pose[2] < -2 or pose[2] > 10:
+    if pose[2] < 0 or pose[2] > 3:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    r, p, y = quat2euler(pose[3:], 'rzyx')
-    if (y > np.pi/4 and y < 7 * np.pi/4) \
-            or (p > np.pi/4 and p < 7 * np.pi/4):
+    y, p, r = quat2euler(pose[3:], 'rzyx')
+    if (r >= np.pi/4 and r <= 7 * np.pi/4) \
+            or (p >= np.pi/4 and p <= 7 * np.pi/4):
         rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
-        return False    
+        return False
     return True
 
 
@@ -184,7 +184,12 @@ class BasicPoseEstimator:
             "buoy_seg": filter_forward_facing,
             "gate_seg": filter_forward_facing,
             "torpedo_seg": filter_forward_facing,
-            # "bin": filter_bottom_facing
+            "bin_abydos_1_part-0": filter_bottom_facing,
+            "bin_abydos_1_part-1": filter_bottom_facing,
+            "bin_abydos_1_part-2": filter_bottom_facing,
+            "bin_earth_1_part-0": filter_bottom_facing,
+            "bin_earth_1_part-1": filter_bottom_facing,
+            "bin_earth_1_part-2": filter_bottom_facing,
         }
 
     def update_config(self, req):
@@ -371,7 +376,7 @@ class BasicPoseEstimator:
     def msg_callback(self, camera_frame_id):
         bridge = CvBridge()
         clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
-    
+
         def callback(msg):
             rospy.loginfo_throttle(10, f"Received image from {camera_frame_id}")
             img = bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
@@ -559,9 +564,9 @@ class BasicPoseEstimator:
                 *camera_stamp_pose,
                 debug,
             )
-        else: 
+        else:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
-                False, 
+                False,
                 "Failed to compute pose!"
             )
         return IMPoseEstimatorUpdateKeypointMatchesResponse(
@@ -604,7 +609,7 @@ class BasicPoseEstimator:
 {x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
             )
             return
-        
+
         if template.name in self.custom_pose_filtering and not self.custom_pose_filtering[template.name](pose):
             rospy.logwarn_throttle(
                 1,
