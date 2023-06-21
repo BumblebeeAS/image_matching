@@ -298,6 +298,9 @@ def get_keypoints_match_producer(
         # FAST detectors
         ("fast", "bf"),
         ("fast", "flann"),
+        # KeyAffHard detectors
+        ("keyaffhard", "bf"),
+        ("keyaffhard", "flann"),
         # Detector-free matchers
         (None, "loftr"),
         (None, "coarse_loftr"),
@@ -375,14 +378,21 @@ def get_keypoints_match_producer(
 
     def get_dkm(config):
         from feature_matcher.dkm_matcher import DKMv3MatchProducer
+
         return DKMv3MatchProducer(config)
-    
+
+    def get_keyaffhard(config):
+        from feature_matcher.keypoint_producer import KeyAffHardKeypointProducer
+
+        return KeyAffHardKeypointProducer(config)
+
     extractors = {
         "superpoint": get_superpoint,
         "orb": get_orb,
         "sift": get_sift,
         "fast": get_fast,
         "alike": get_alike,
+        "keyaffhard": get_keyaffhard,
     }
     matchers = {"superglue": get_superglue, "bf": get_bf, "flann": get_flann}
     extractor_matcher = {
