@@ -845,7 +845,7 @@ if __name__ == "__main__":
         return image_match_producer
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
-    matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
+    # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
     matchers["superpoint_superglue"] = get_matcher("superpoint_superglue")
     if matcher not in matchers:
         matchers[matcher] = get_matcher(matcher)
