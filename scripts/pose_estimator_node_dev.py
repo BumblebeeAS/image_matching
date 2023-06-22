@@ -179,6 +179,7 @@ class BasicPoseEstimator:
         )
 
         self.PADDING = 10
+        self.clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
 
         self.subscribers: Dict[str, rospy.Subscriber] = {}
         rospy.Timer(rospy.Duration(0.3), self.cropped_image_callback)
@@ -430,6 +431,23 @@ class BasicPoseEstimator:
             except CvBridgeError as e:
                 rospy.logerr(e)
                 continue
+
+            # CLAHE to L in LAB space
+            lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
+            img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
+
+            # Contrast Normalization
+            img = cv2.normalize(
+                img,
+                None,
+                alpha=0,
+                beta=1.0,
+                norm_type=cv2.NORM_MINMAX,
+                dtype=cv2.CV_32F,
+            )
+            img = (255 * img).astype(np.uint8)
+            
             images[camera_frame_id] = img
             try:
                 camera_tf = self.tf_buffer.lookup_transform(
