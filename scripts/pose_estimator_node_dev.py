@@ -42,7 +42,7 @@ from bb_msgs.srv import (
 )
 
 import threading
-from transforms3d.quaternions import mat2quat, quat2mat
+from transforms3d.quaternions import mat2quat, quat2mat, qinverse, qmult
 from transforms3d.euler import quat2euler, euler2quat, mat2euler
 from transforms3d.affines import compose, decompose
 
@@ -86,7 +86,7 @@ def filter_forward_facing(pose):
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
     r, p, y = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
-    if abs((y % 180) - 90)  > 40:
+    if abs((y % 180) - 90)  > 30:
         rospy.logwarn(f"Not vertical {r} {p} {y}")
         return False
     return True
@@ -101,6 +101,12 @@ def filter_bottom_facing(pose):
         rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
         return False
     return True
+
+def transform_buoy_stabilized(quat):
+    q1 = euler2quat(np.pi/2, 0, np.pi/2, 'rzyx')
+    qw, qx, qy, qz = qmult(qinverse(q1), quat)
+    r, p, y = (quat2euler([qw, qx, qy, qz], 'rxyz'))
+    return qmult(q1, euler2quat(r, p, 0, 'rxyz'))
 
 
 class BasicPoseEstimator:
@@ -180,7 +186,7 @@ class BasicPoseEstimator:
         self.subscribers: Dict[str, rospy.Subscriber] = {}
         rospy.Timer(rospy.Duration(0.3), self.cropped_image_callback)
         self.custom_pose_filtering: Dict[str,
-                                         Callable[[np.array], bool]] = {
+                                         Callable[[np.ndarray], bool]] = {
             "buoy_seg": filter_forward_facing,
             "gate_seg": filter_forward_facing,
             "torpedo_seg": filter_forward_facing,
@@ -190,6 +196,12 @@ class BasicPoseEstimator:
             "bin_earth_1_part-0": filter_bottom_facing,
             "bin_earth_1_part-1": filter_bottom_facing,
             "bin_earth_1_part-2": filter_bottom_facing,
+        }
+
+        self.custom_stabilized_orientation_transform: Dict[str,
+                                         Callable[[np.ndarray], np.ndarray]] = {
+            "buoy1": transform_buoy_stabilized,
+            "buoy2": transform_buoy_stabilized
         }
 
     def update_config(self, req):
@@ -678,6 +690,13 @@ class BasicPoseEstimator:
         r, p, y = quat2euler(fused_pose[3:], axes='rzyx')
         new_r, new_p, new_y = r, np.round(p / rangle) * rangle, np.round(y / rangle) * rangle
         qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
+
+
+        if template.name in self.custom_stabilized_orientation_transform:
+            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[template.name](
+                np.array([qw, qx, qy, qz])).tolist()
+
+
         transform_zeroed.transform.rotation = Quaternion(qx, qy, qz, qw)
         transform_zeroed.child_frame_id = template.name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
