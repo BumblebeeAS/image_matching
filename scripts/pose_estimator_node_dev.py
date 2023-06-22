@@ -75,6 +75,7 @@ class Template:
     min_matches: int
     max_history: float
     reprojection_error_threshold: float
+    object_name: str
 
 def filter_forward_facing(pose):
     """
@@ -200,7 +201,13 @@ class BasicPoseEstimator:
         self.custom_stabilized_orientation_transform: Dict[str,
                                          Callable[[np.ndarray], np.ndarray]] = {
             "buoy1": transform_buoy_stabilized,
-            "buoy2": transform_buoy_stabilized
+            "buoy2": transform_buoy_stabilized,
+            "buoy1-2": transform_buoy_stabilized,
+            "buoy1-3": transform_buoy_stabilized,
+            "buoy1-4": transform_buoy_stabilized,
+            "buoy2-2": transform_buoy_stabilized,
+            "buoy2-3": transform_buoy_stabilized,
+            "buoy2-4": transform_buoy_stabilized
         }
 
     def update_config(self, req):
@@ -211,6 +218,10 @@ class BasicPoseEstimator:
             rospy.logerr(f"Template {template_name} not registered")
             return IMPoseEstimatorConfigResponse(False)
 
+        if req.object_name == "":
+            self.templates[template_name].object_name = req.template_name
+        else:
+            self.templates[template_name].object_name = req.object_name
         if matcher not in self.image_match_producers.keys():
             rospy.logerr(f"Matcher {matcher} not loaded")
             return IMPoseEstimatorConfigResponse(False)
@@ -286,6 +297,7 @@ class BasicPoseEstimator:
             4, # min_matches
             10,  # max_history,
             2,  # reprojection_error_threshold
+            name
         )
 
     def get_status(self, req: IMPoseEstimatorGetStatusRequest):
@@ -495,7 +507,6 @@ class BasicPoseEstimator:
                 f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
             )
             template = self.templates[template_name]
-
             rot, trans = self.pose_estimator.compute_pose(
                 images[camera_frame_id],
                 template_name,
@@ -641,15 +652,15 @@ class BasicPoseEstimator:
         ) or any(np.abs([x, y, z]) > 10000):
             rospy.logwarn_throttle(
                 1,
-                f"Invalid pose estimate for {template.name} in {frame_id}: \
+                f"Invalid pose estimate for {template.object_name} in {frame_id}: \
 {x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
             )
             return
 
-        if template.name in self.custom_pose_filtering and not self.custom_pose_filtering[template.name](pose):
+        if template.object_name in self.custom_pose_filtering and not self.custom_pose_filtering[template.object_name](pose):
             rospy.logwarn_throttle(
                 1,
-                f"Invalid pose estimate for {template.name} based on custom filter",
+                f"Invalid pose estimate for {template.object_name} based on custom filter",
             )
             return
 
@@ -701,7 +712,7 @@ class BasicPoseEstimator:
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
         transform_stamped.header.frame_id = "world_ned"
-        transform_stamped.child_frame_id = template.name + "_optical"
+        transform_stamped.child_frame_id = template.object_name + "_optical"
 
         transform_stamped.transform.translation = Vector3(*fused_pose[:3])
         qw, qx, qy, qz = fused_pose[3:]
@@ -716,13 +727,13 @@ class BasicPoseEstimator:
         qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
 
 
-        if template.name in self.custom_stabilized_orientation_transform:
-            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[template.name](
+        if template.object_name in self.custom_stabilized_orientation_transform:
+            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[template.object_name](
                 np.array([qw, qx, qy, qz])).tolist()
 
 
         transform_zeroed.transform.rotation = Quaternion(qx, qy, qz, qw)
-        transform_zeroed.child_frame_id = template.name + "_stabilized"
+        transform_zeroed.child_frame_id = template.object_name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
 
 
@@ -736,14 +747,14 @@ class BasicPoseEstimator:
 
         rospy.loginfo_throttle(
             5,
-            f"Published transform {template.name}_stabilized:\
+            f"Published transform {template.object_name}_stabilized:\
                 {transform_stamped.transform.translation}",
         )
 
         odometry = Odometry()
         odometry.header = fused_pose_stamped.header
         odometry.pose.pose = fused_pose_stamped.pose
-        odometry.child_frame_id = template.name + "_stabilized"
+        odometry.child_frame_id = template.object_name + "_stabilized"
         odometry.pose.covariance = np.diag(variance).flatten().tolist()
         self.odom_pub.publish(odometry)
 
