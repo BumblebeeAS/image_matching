@@ -8,14 +8,26 @@
     "_chevron_blue.jpeg": [0.1524, 0.2286],
     "_chevron.jpeg": [0.1016, 0.1524],
     "_chevron_red.png": [0.1524, 0.2286],
-    "2023_torpedo1.png": [1.2192, 1.2192],
-    "2023_torpedo2.png": [1.2192, 1.2192],
-    "2023_torpedo_big.png": [1.2192, 0.6096],
-    "2023_torpedo_small.png": [1.2192, 0.6096],
+    "_2023_torpedo1.png": [1.2192, 1.2192],
+    "_2023_torpedo2.png": [1.2192, 1.2192],
+    "2023_torpedo_big.png": {
+        "object_name": "2023_torpedo_big",
+        "dimensions": [1.19396645833, 0.63297157986],
+        "regions": {
+            "hole": [0.3, 0.2, 0.7, 0.8]
+        }
+    },
+    "2023_torpedo_small.png": {
+        "object_name": "2023_torpedo_small",
+        "dimensions": [1.19396645833, 0.63297157986],
+        "regions": {
+            "hole": [0.3, 0.2, 0.7, 0.8]
+        }
+    },
     "torpedo_seg.png": [1.2192, 1.2192],
     "buoy_seg.png": [1.2192, 1.2192],
     "_pole_seg.png": [2, 0.0762],
-    "gate_seg.png": [2, 1],
+    "gate_seg.png": [3, 1.5],
     "dhd_seg.png": [2, 2],
     "DHD.jpg": [1.2192, 1.2192],
     "_DHD_rotated.jpg": [1.2192, 1.2192],
@@ -26,9 +38,9 @@
     "_earth1.png": [0.6096, 0.6096],
     "_earth2.png": [0.6096, 0.6096],
     "buoy1.png": [1.2192, 1.2192],
-    "buoy1-2.png": [1.2192, 1.2192],
-    "buoy1-3.png": [1.2192, 1.2192],
-    "buoy1-4.png": [1.2192, 1.2192],
+    "_buoy1-2.png": [1.2192, 1.2192],
+    "_buoy1-3.png": [1.2192, 1.2192],
+    "_buoy1-4.png": [1.2192, 1.2192],
     "buoy2.png": [1.2192, 1.2192],
     "_buoy3.png": [1.2192, 1.2192],
     "_abydos3.png": [0.4, 0.4],

@@ -352,8 +352,12 @@ if __name__ == "__main__":
         rospy.loginfo(f"Registering template {template_path}")
 
         template_filename = template_path.split("/")[-1]
-        template_width = templates[template_filename][0]
-        template_height = templates[template_filename][1]
+        if isinstance(templates[template_filename], list):
+            template_width = templates[template_filename][0]
+            template_height = templates[template_filename][1]
+        else:
+            template_width = templates[template_filename]["dimensions"][0]
+            template_height = templates[template_filename]["dimensions"][1]
         template_img = cv2.imread(template_path)
         rospy.loginfo(
             f"Using template dimensions {template_width}x{template_height} \
