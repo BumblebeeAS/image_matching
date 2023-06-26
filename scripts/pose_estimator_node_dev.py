@@ -123,7 +123,6 @@ class BasicPoseEstimator:
         templates_dir="./",
         debug=False,
     ):
-        self.cameras = {}
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
         self.templates: Dict[str, Template] = {}
@@ -428,7 +427,6 @@ class BasicPoseEstimator:
             
 
     def register_camera(self, camera_topic: str, camera: PinholeCamera):
-        self.cameras[camera_topic] = camera
         self.subscribers[camera_topic] = rospy.Subscriber(
             camera_topic,
             CompressedImage,
@@ -441,14 +439,14 @@ class BasicPoseEstimator:
         bridge = CvBridge()
 
         def callback(msg):
-            rospy.loginfo_throttle(10, f"Received image from {camera_frame_id}")
+            rospy.loginfo(f"Received image from {camera_frame_id}")
             img = bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
 
             new_msg = bridge.cv2_to_compressed_imgmsg(img)
 
-            mutex.acquire(blocking=True)
-            self.latest_msgs[camera_frame_id] = new_msg
-            mutex.release()
+            if mutex.acquire(blocking=False):
+                self.latest_msgs[camera_frame_id] = new_msg
+                mutex.release()
 
         return callback
 
