@@ -464,30 +464,22 @@ class BasicPoseEstimator:
                     rospy.logerr(e)
                     continue
 
-            # CLAHE to L in LAB space
-            # lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            # lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
-            # img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
+                # CLAHE to L in LAB space
+                # lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                # lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
+                # img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
 
-            # Contrast Normalization
-            # img = cv2.normalize(
-            #     img,
-            #     None,
-            #     alpha=0,
-            #     beta=1.0,
-            #     norm_type=cv2.NORM_MINMAX,
-            #     dtype=cv2.CV_32F,
-            # )
-            # img = (255 * img).astype(np.uint8)
+                # Contrast Normalization
+                # img = cv2.normalize(
+                #     img,
+                #     None,
+                #     alpha=0,
+                #     beta=1.0,
+                #     norm_type=cv2.NORM_MINMAX,
+                #     dtype=cv2.CV_32F,
+                # )
+                # img = (255 * img).astype(np.uint8)
 
-            images[camera_frame_id] = img
-            try:
-                camera_tf = self.tf_buffer.lookup_transform(
-                    "world_ned", camera_frame_id, msg.header.stamp,
-                    rospy.Duration(0.1)
-                )
-                img = (255 * img).astype(np.uint8)
-                
                 images[camera_frame_id] = img
                 try:
                     camera_tf = self.tf_buffer.lookup_transform(
@@ -507,7 +499,7 @@ class BasicPoseEstimator:
                         np.ones(3),
                     ),
                 )
-            active_templates = copy.deepcopy(self.active_templates)
+        active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:
             template_name, camera_frame_id = active_template
