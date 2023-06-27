@@ -202,6 +202,9 @@ class BasicPoseEstimator:
             "bin_earth_1_part-0": filter_bottom_facing,
             "bin_earth_1_part-1": filter_bottom_facing,
             "bin_earth_1_part-2": filter_bottom_facing,
+            "bin_earth_2_part-0": filter_bottom_facing,
+            "bin_earth_2_part-1": filter_bottom_facing,
+            "bin_earth_2_part-2": filter_bottom_facing,
         }
 
         self.custom_stabilized_orientation_transform: Dict[str,
@@ -230,16 +233,16 @@ class BasicPoseEstimator:
         if matcher not in self.image_match_producers.keys():
             rospy.logerr(f"Matcher {matcher} not loaded")
             return IMPoseEstimatorConfigResponse(False)
-        
+
         object_name = self.templates[template_name].object_name
         if object_name not in self.template_objects.keys():
             rospy.logerr(f"Object {object_name} not registered")
             return IMPoseEstimatorConfigResponse(False)
-        
+
         setattr(self.template_objects[object_name], "min_buffer_size", req.min_buffer_size)
         setattr(self.template_objects[object_name], "max_buffer_size", req.max_buffer_size)
         setattr(self.template_objects[object_name], "max_history", req.max_history)
-        
+
         if req.reset:
             self.template_objects[object_name].poses = pd.DataFrame(
                 columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"])
@@ -424,7 +427,7 @@ class BasicPoseEstimator:
         for subscriber in self.subscribers.values():
             if subscriber.get_num_connections() == 0:
                 return False
-            
+
 
     def register_camera(self, camera_topic: str, camera: PinholeCamera):
         self.subscribers[camera_topic] = rospy.Subscriber(
@@ -990,6 +993,6 @@ if __name__ == "__main__":
                 768,
                 436.40875244140625, 467.6256103515625, 510.88065980075044, 376.3738157469634
             ))
-        
+
     rospy.on_shutdown(pose_estimator.teardown)
     rospy.spin()

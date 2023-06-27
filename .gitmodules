@@ -19,3 +19,6 @@
 [submodule "docs"]
 	path = docs
 	url = git@github.com:BumblebeeAS/image_matching.wiki
+[submodule "src/feature_matcher/models/LightGlue"]
+	path = src/feature_matcher/models/LightGlue
+	url = git@github.com:cvg/LightGlue.git
