@@ -445,61 +445,61 @@ class BasicPoseEstimator:
             new_msg = bridge.cv2_to_compressed_imgmsg(img)
 
             if mutex.acquire(blocking=False):
-                self.latest_msgs[camera_frame_id] = new_msg
-                mutex.release()
+                try:
+                    self.latest_msgs[camera_frame_id] = new_msg
+                finally:
+                    mutex.release()
 
         return callback
 
     def cropped_image_callback(self, debug=True):
         rospy.loginfo_throttle(5, self.active_templates)
-        mutex.acquire(blocking=True)
-        images = {}
-        camera_stamp_poses: Dict[Tuple[float, np.ndarray]] = {}
-        for camera_frame_id, msg in self.latest_msgs.items():
-            try:
-                img = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
-            except CvBridgeError as e:
-                rospy.logerr(e)
-                continue
+        with mutex:
+            images = {}
+            camera_stamp_poses: Dict[Tuple[float, np.ndarray]] = {}
+            for camera_frame_id, msg in self.latest_msgs.items():
+                try:
+                    img = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+                except CvBridgeError as e:
+                    rospy.logerr(e)
+                    continue
 
-            # CLAHE to L in LAB space
-            lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
-            img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
+                # CLAHE to L in LAB space
+                lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
+                img = cv2.cvtColor(lab_img, cv2.COLOR_LAB2BGR)
 
-            # Contrast Normalization
-            img = cv2.normalize(
-                img,
-                None,
-                alpha=0,
-                beta=1.0,
-                norm_type=cv2.NORM_MINMAX,
-                dtype=cv2.CV_32F,
-            )
-            img = (255 * img).astype(np.uint8)
-            
-            images[camera_frame_id] = img
-            try:
-                camera_tf = self.tf_buffer.lookup_transform(
-                    "world_ned", camera_frame_id, msg.header.stamp,
-                    rospy.Duration(0.1)
+                # Contrast Normalization
+                img = cv2.normalize(
+                    img,
+                    None,
+                    alpha=0,
+                    beta=1.0,
+                    norm_type=cv2.NORM_MINMAX,
+                    dtype=cv2.CV_32F,
                 )
-            except Exception as e:
-                rospy.logerr(e)
-                continue
-            camera_stamp_poses[camera_frame_id] = (
-                msg.header.stamp,
-                compose(
-                    attrgetter("x", "y", "z")(camera_tf.transform.translation),
-                    quat2mat(attrgetter("w", "x", "y", "z")(
-                        camera_tf.transform.rotation
-                    )),
-                    np.ones(3),
-                ),
-            )
-
-        active_templates = copy.deepcopy(self.active_templates)
-        mutex.release()
+                img = (255 * img).astype(np.uint8)
+                
+                images[camera_frame_id] = img
+                try:
+                    camera_tf = self.tf_buffer.lookup_transform(
+                        "world_ned", camera_frame_id, msg.header.stamp,
+                        rospy.Duration(0.1)
+                    )
+                except Exception as e:
+                    rospy.logerr(e)
+                    continue
+                camera_stamp_poses[camera_frame_id] = (
+                    msg.header.stamp,
+                    compose(
+                        attrgetter("x", "y", "z")(camera_tf.transform.translation),
+                        quat2mat(attrgetter("w", "x", "y", "z")(
+                            camera_tf.transform.rotation
+                        )),
+                        np.ones(3),
+                    ),
+                )
+            active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:
             template_name, camera_frame_id = active_template
