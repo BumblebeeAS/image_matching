@@ -845,6 +845,10 @@ if __name__ == "__main__":
             image_match_producer = get_keypoints_match_producer(
                 "superpoint", "superglue", {"debug": True}, {"debug": True}
             )
+        elif matcher == "superpoint_lightglue":
+            image_match_producer = get_keypoints_match_producer(
+                "superpoint", "lightglue", {"debug": True}, {"debug": True}
+            )
         elif matcher == "fast_bf":
             image_match_producer = get_keypoints_match_producer(
                 "fast", "bf", {"debug": True}, {"debug": True}
@@ -876,7 +880,7 @@ if __name__ == "__main__":
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
     # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
-    matchers["superpoint_superglue"] = get_matcher("superpoint_superglue")
+    matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue")
     if matcher not in matchers:
         matchers[matcher] = get_matcher(matcher)
     pose_estimator = BasicPoseEstimator(
