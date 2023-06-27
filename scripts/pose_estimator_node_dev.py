@@ -18,9 +18,7 @@ import tf2_ros
 from cv_bridge import CvBridge, CvBridgeError
 from rospkg import RosPack
 from sensor_msgs.msg import CameraInfo, CompressedImage
-from geometry_msgs.msg import (
-    Point, PoseStamped, Vector3, Quaternion, TransformStamped
-)
+from geometry_msgs.msg import Point, PoseStamped, Vector3, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from bb_msgs.msg import DetectedObjects
 from bb_msgs.srv import (
@@ -46,10 +44,11 @@ from transforms3d.quaternions import mat2quat, quat2mat, qinverse, qmult
 from transforms3d.euler import quat2euler, euler2quat, mat2euler
 from transforms3d.affines import compose, decompose
 
-from feature_matcher.keypoints_match_producer\
-    import KeypointsMatchProducer, get_keypoints_match_producer
-from pose_estimator.pose_weighted_average\
-    import get_kmeans_center
+from feature_matcher.keypoints_match_producer import (
+    KeypointsMatchProducer,
+    get_keypoints_match_producer,
+)
+from pose_estimator.pose_weighted_average import get_kmeans_center
 from pose_estimator.PinholeCamera import PinholeCamera
 from pose_estimator.pose_estimator import PoseEstimator
 
@@ -71,7 +70,10 @@ class Template:
     min_matches: int
     reprojection_error_threshold: float
     object_name: str
-    offset: Tuple[float, float] # x, y offset of template center from object_name frame in meters
+    offset: Tuple[
+        float, float
+    ]  # x, y offset of template center from object_name frame in meters
+
 
 @dataclass
 class TemplateObject:
@@ -91,27 +93,29 @@ def filter_forward_facing(pose):
     if pose[2] < -2 or pose[2] > 10:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    r, p, y = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
-    if abs((y % 180) - 90)  > 30:
+    r, p, y = np.rad2deg(quat2euler(pose[3:], "rzyx"))
+    if abs((y % 180) - 90) > 30:
         rospy.logwarn(f"Not vertical {r} {p} {y}")
         return False
     return True
+
 
 def filter_bottom_facing(pose):
     if pose[2] < 0 or pose[2] > 3:
         rospy.logwarn_throttle(1, "Rubbish z")
         return False
-    y, p, r = np.rad2deg(quat2euler(pose[3:], 'rzyx'))
+    y, p, r = np.rad2deg(quat2euler(pose[3:], "rzyx"))
     if r >= 45 or r <= -45 or p >= 45 or p <= -45:
         rospy.logwarn_throttle(1, f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}")
         return False
     return True
 
+
 def transform_buoy_stabilized(quat):
-    q1 = euler2quat(np.pi/2, 0, np.pi/2, 'rzyx')
+    q1 = euler2quat(np.pi / 2, 0, np.pi / 2, "rzyx")
     qw, qx, qy, qz = qmult(qinverse(q1), quat)
-    r, p, y = (quat2euler([qw, qx, qy, qz], 'rxyz'))
-    return qmult(q1, euler2quat(r, p, 0, 'rxyz'))
+    r, p, y = quat2euler([qw, qx, qy, qz], "rxyz")
+    return qmult(q1, euler2quat(r, p, 0, "rxyz"))
 
 
 class BasicPoseEstimator:
@@ -151,21 +155,15 @@ class BasicPoseEstimator:
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(15))
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
         self.br = tf2_ros.TransformBroadcaster()
-        self.odom_pub = rospy.Publisher(
-            "impose_estimates",
-            Odometry,
-            queue_size=1
-        )
+        self.odom_pub = rospy.Publisher("impose_estimates", Odometry, queue_size=1)
 
         self.update_keypoint_matches_service = rospy.Service(
             "impose_update_keypoint_matches",
             IMPoseEstimatorUpdateKeypointMatches,
-            self.update_keypoint_matches
+            self.update_keypoint_matches,
         )
         self.get_templates_service = rospy.Service(
-            "impose_get_templates",
-            IMPoseEstimatorGetTemplates,
-            self.get_templates
+            "impose_get_templates", IMPoseEstimatorGetTemplates, self.get_templates
         )
         self.register_template_service = rospy.Service(
             "impose_register_template",
@@ -190,9 +188,10 @@ class BasicPoseEstimator:
         self.clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8, 8))
 
         self.subscribers: Dict[str, rospy.Subscriber] = {}
-        self.timer = rospy.Timer(rospy.Duration(0.3), self.cropped_image_callback, reset=True)
-        self.custom_pose_filtering: Dict[str,
-                                         Callable[[np.ndarray], bool]] = {
+        self.timer = rospy.Timer(
+            rospy.Duration(0.3), self.cropped_image_callback, reset=True
+        )
+        self.custom_pose_filtering: Dict[str, Callable[[np.ndarray], bool]] = {
             "buoy_seg": filter_forward_facing,
             "gate_seg": filter_forward_facing,
             "torpedo_seg": filter_forward_facing,
@@ -204,8 +203,9 @@ class BasicPoseEstimator:
             "bin_earth_1_part-2": filter_bottom_facing,
         }
 
-        self.custom_stabilized_orientation_transform: Dict[str,
-                                         Callable[[np.ndarray], np.ndarray]] = {
+        self.custom_stabilized_orientation_transform: Dict[
+            str, Callable[[np.ndarray], np.ndarray]
+        ] = {
             "buoy1": transform_buoy_stabilized,
             "buoy2": transform_buoy_stabilized,
             "buoy1-2": transform_buoy_stabilized,
@@ -213,8 +213,9 @@ class BasicPoseEstimator:
             "buoy1-4": transform_buoy_stabilized,
             "buoy2-2": transform_buoy_stabilized,
             "buoy2-3": transform_buoy_stabilized,
-            "buoy2-4": transform_buoy_stabilized
+            "buoy2-4": transform_buoy_stabilized,
         }
+
     def teardown(self):
         for sub in self.subscribers.values():
             sub.unregister()
@@ -230,33 +231,47 @@ class BasicPoseEstimator:
         if matcher not in self.image_match_producers.keys():
             rospy.logerr(f"Matcher {matcher} not loaded")
             return IMPoseEstimatorConfigResponse(False)
-        
+
         object_name = self.templates[template_name].object_name
         if object_name not in self.template_objects.keys():
             rospy.logerr(f"Object {object_name} not registered")
             return IMPoseEstimatorConfigResponse(False)
-        
-        setattr(self.template_objects[object_name], "min_buffer_size", req.min_buffer_size)
-        setattr(self.template_objects[object_name], "max_buffer_size", req.max_buffer_size)
+
+        setattr(
+            self.template_objects[object_name], "min_buffer_size", req.min_buffer_size
+        )
+        setattr(
+            self.template_objects[object_name], "max_buffer_size", req.max_buffer_size
+        )
         setattr(self.template_objects[object_name], "max_history", req.max_history)
-        
+
         if req.reset:
             self.template_objects[object_name].poses = pd.DataFrame(
-                columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"])
+                columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]
+            )
             self.template_objects[object_name].computed_pose = None
 
-        setattr(self.templates[template_name], "reprojection_error_threshold",
-                req.max_reprojection_threshold)
+        setattr(
+            self.templates[template_name],
+            "reprojection_error_threshold",
+            req.max_reprojection_threshold,
+        )
         setattr(self.templates[template_name], "min_matches", req.min_matches)
         setattr(self.templates[template_name], "matcher", matcher)
 
-        rospy.loginfo(f"Config updated: {req} {self.templates[template_name]} {self.template_objects[object_name]}")
+        rospy.loginfo(
+            f"Config updated: {req} {self.templates[template_name]} {self.template_objects[object_name]}"
+        )
         return IMPoseEstimatorConfigResponse(success=True)
 
     def get_templates(self, req):
-        active_templates = list(set([template_name for template_name,
-                      _ in self.active_templates]))
-        active_templates = [template_name + ": " + self.templates[template_name].matcher for template_name in active_templates]
+        active_templates = list(
+            set([template_name for template_name, _ in self.active_templates])
+        )
+        active_templates = [
+            template_name + ": " + self.templates[template_name].matcher
+            for template_name in active_templates
+        ]
         return IMPoseEstimatorGetTemplatesResponse(
             self.pose_estimator.available_templates,
             active_templates,
@@ -268,8 +283,7 @@ class BasicPoseEstimator:
             print("Disabling all templates")
             self.active_templates.clear()
             return IMPoseEstimatorToggleTemplateResponse(
-                False,
-                "All templates disabled"
+                False, "All templates disabled"
             )
 
         if req.template_name not in self.pose_estimator.available_templates:
@@ -283,25 +297,21 @@ class BasicPoseEstimator:
         if req.enabled:
             self.active_templates.add((req.template_name, req.camera_frame_id))
         else:
-            if not (req.template_name, req.camera_frame_id) in \
-                    self.active_templates:
+            if not (req.template_name, req.camera_frame_id) in self.active_templates:
                 return IMPoseEstimatorToggleTemplateResponse(
                     False, f"Template {req.template_name} not active"
                 )
-            self.active_templates.remove((req.template_name,
-                                          req.camera_frame_id))
+            self.active_templates.remove((req.template_name, req.camera_frame_id))
         print("toggled template", self.subscribers)
         return IMPoseEstimatorToggleTemplateResponse(
-            (req.template_name, req.camera_frame_id) in self.active_templates,
-            ""
+            (req.template_name, req.camera_frame_id) in self.active_templates, ""
         )
 
     @staticmethod
     def create_default_object(name):
         return TemplateObject(
             name,
-            pd.DataFrame(
-                columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
+            pd.DataFrame(columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
             None,
             1,  # min_buffer_size
             20,  # max_buffer_size
@@ -315,10 +325,10 @@ class BasicPoseEstimator:
         return Template(
             name,
             "sift_flann",
-            4, # min_matches
+            4,  # min_matches
             2,  # reprojection_error_threshold
             object_name,
-            offset # of template center from object center
+            offset,  # of template center from object center
         )
 
     def get_status(self, req: IMPoseEstimatorGetStatusRequest):
@@ -328,11 +338,16 @@ class BasicPoseEstimator:
             return res
         template = self.templates[req.template_name]
         template_object = self.template_objects[template.object_name]
-        if (template_object.computed_pose is None):
+        if template_object.computed_pose is None:
             res.is_valid = False
             return res
-        time_since_last = rospy.Time.now().secs-template_object.computed_pose.header.stamp.secs
-        if template_object.max_history > 0 and time_since_last > template_object.max_history:
+        time_since_last = (
+            rospy.Time.now().secs - template_object.computed_pose.header.stamp.secs
+        )
+        if (
+            template_object.max_history > 0
+            and time_since_last > template_object.max_history
+        ):
             res.is_valid = False
             res.num_poses = len(template_object.poses)
             return res
@@ -341,11 +356,13 @@ class BasicPoseEstimator:
         res.num_poses = len(template_object.poses)
         return res
 
-    def register_template(self, img, name, dimensions, object_name, offset = (0, 0)):
+    def register_template(self, img, name, dimensions, object_name, offset=(0, 0)):
         self.pose_estimator.register_template(name, dimensions, img)
         if object_name not in self.template_objects.keys():
             self.template_objects[object_name] = self.create_default_object(object_name)
-        self.templates[name] = BasicPoseEstimator.create_default_template(name, object_name, offset)
+        self.templates[name] = BasicPoseEstimator.create_default_template(
+            name, object_name, offset
+        )
 
     @staticmethod
     def equalize_green_blue(img):
@@ -358,8 +375,7 @@ class BasicPoseEstimator:
 
         return img_eq
 
-    def register_template_cb(self,
-                             req: IMPoseEstimatorRegisterTemplateRequest):
+    def register_template_cb(self, req: IMPoseEstimatorRegisterTemplateRequest):
         compressed_image_topic_name = req.image_topic_name
         detected_objects_topic_name = req.detected_objects_topic_name
         object_name = req.object_name
@@ -369,13 +385,11 @@ class BasicPoseEstimator:
                 for i in range(3):
                     try:
                         detected_objects = rospy.wait_for_message(
-                            detected_objects_topic_name, DetectedObjects,
-                            timeout=2
+                            detected_objects_topic_name, DetectedObjects, timeout=2
                         )
                     except rospy.ROSException:
                         continue
-                    if any([x.name == object_name
-                            for x in detected_objects.detected]):
+                    if any([x.name == object_name for x in detected_objects.detected]):
                         detected_object = sorted(
                             detected_objects.detected,
                             key=lambda x: x.extra[0],
@@ -396,9 +410,7 @@ class BasicPoseEstimator:
                 )
                 x, y = int(cx - w / 2), int(cy - h / 2)
                 cv2_img = cv2_img[
-                    y - PADDING:y + h + PADDING,
-                    x - PADDING:x + w + PADDING,
-                    :
+                    y - PADDING : y + h + PADDING, x - PADDING : x + w + PADDING, :
                 ]
             cv2.imwrite(
                 os.path.join(
@@ -408,23 +420,18 @@ class BasicPoseEstimator:
                 cv2_img,
             )
             if req.template_name in self.templates:
-                rospy.loginfo("Replacing existing template %s",
-                              req.template_name)
+                rospy.loginfo("Replacing existing template %s", req.template_name)
             self.register_template(
-                cv2_img,
-                req.template_name,
-                (req.width, req.height),
-                object_name,
-                (0, 0)
+                cv2_img, req.template_name, (req.width, req.height), object_name, (0, 0)
             )
             return IMPoseEstimatorRegisterTemplateResponse(True, "")
         except Exception as e:
             return IMPoseEstimatorRegisterTemplateResponse(False, str(e))
+
     def check_subscribers(self):
         for subscriber in self.subscribers.values():
             if subscriber.get_num_connections() == 0:
                 return False
-            
 
     def register_camera(self, camera_topic: str, camera: PinholeCamera):
         self.subscribers[camera_topic] = rospy.Subscriber(
@@ -483,8 +490,10 @@ class BasicPoseEstimator:
                 images[camera_frame_id] = img
                 try:
                     camera_tf = self.tf_buffer.lookup_transform(
-                        "world_ned", camera_frame_id, msg.header.stamp,
-                        rospy.Duration(0.1)
+                        "world_ned",
+                        camera_frame_id,
+                        msg.header.stamp,
+                        rospy.Duration(0.1),
                     )
                 except Exception as e:
                     rospy.logerr(e)
@@ -493,9 +502,9 @@ class BasicPoseEstimator:
                     msg.header.stamp,
                     compose(
                         attrgetter("x", "y", "z")(camera_tf.transform.translation),
-                        quat2mat(attrgetter("w", "x", "y", "z")(
-                            camera_tf.transform.rotation
-                        )),
+                        quat2mat(
+                            attrgetter("w", "x", "y", "z")(camera_tf.transform.rotation)
+                        ),
                         np.ones(3),
                     ),
                 )
@@ -512,7 +521,10 @@ class BasicPoseEstimator:
             if template_name not in self.templates:
                 rospy.logerr(f"Template {template_name} not registered")
                 continue
-            if camera_frame_id not in camera_stamp_poses or len(camera_stamp_poses[camera_frame_id]) == 0:
+            if (
+                camera_frame_id not in camera_stamp_poses
+                or len(camera_stamp_poses[camera_frame_id]) == 0
+            ):
                 rospy.logerr(f"No camera poses found for {camera_frame_id}")
                 continue
             _s = camera_stamp_poses[camera_frame_id][0].secs
@@ -526,13 +538,13 @@ class BasicPoseEstimator:
                 images[camera_frame_id],
                 template_name,
                 camera_frame_id,
-                matcher = template.matcher,
+                matcher=template.matcher,
                 num_keypoints=300,
                 lxtyrxby=None,
                 debug=True,
                 is_planar=False,  # Use homography to do rejection
                 max_reprojection_error=template.reprojection_error_threshold,
-                min_matches=template.min_matches
+                min_matches=template.min_matches,
             )
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
@@ -572,25 +584,21 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                "world_ned", camera_frame_id, req.header.stamp,
-                rospy.Duration(0.1)
+                "world_ned", camera_frame_id, req.header.stamp, rospy.Duration(0.1)
             )
             camera_stamp_pose = (
                 req.header.stamp,
                 compose(
                     attrgetter("x", "y", "z")(camera_tf.transform.translation),
-                    quat2mat(attrgetter("w", "x", "y", "z")(
-                        camera_tf.transform.rotation
-                    )),
+                    quat2mat(
+                        attrgetter("w", "x", "y", "z")(camera_tf.transform.rotation)
+                    ),
                     np.ones(3),
                 ),
             )
         except Exception as e:
             rospy.logerr(e)
-            return IMPoseEstimatorUpdateKeypointMatchesResponse(
-                False,
-                str(e)
-            )
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(False, str(e))
 
         kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
         kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
@@ -598,12 +606,12 @@ class BasicPoseEstimator:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
                 f"Invalid keypoints: got different numbers of correspondences: \
-{len(kp1)}, {len(kp2)}"
+{len(kp1)}, {len(kp2)}",
             )
         if len(kp1) < max(4, self.templates[template_name].min_matches):
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
                 False,
-                f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
+                f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints",
             )
         rot, trans, _ = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
@@ -614,7 +622,7 @@ class BasicPoseEstimator:
             max_reprojection_error=self.templates[
                 template_name
             ].reprojection_error_threshold,
-            debug=self.debug
+            debug=self.debug,
         )
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
@@ -627,13 +635,9 @@ class BasicPoseEstimator:
             )
         else:
             return IMPoseEstimatorUpdateKeypointMatchesResponse(
-                False,
-                "Failed to compute pose!"
+                False, "Failed to compute pose!"
             )
-        return IMPoseEstimatorUpdateKeypointMatchesResponse(
-            True,
-            ""
-        )
+        return IMPoseEstimatorUpdateKeypointMatchesResponse(True, "")
 
     def update_pose(
         self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
@@ -649,7 +653,9 @@ class BasicPoseEstimator:
             world to camera frame
         """
         template_object = self.template_objects[template.object_name]
-        object_trans = np.array([trans[0] - template.offset[0], trans[1] - template.offset[1], trans[2]])
+        object_trans = np.array(
+            [trans[0] - template.offset[0], trans[1] - template.offset[1], trans[2]]
+        )
         tfm_camera_to_frame = np.eye(4)
         tfm_camera_to_frame[:3, :3] = rot
         tfm_camera_to_frame[:3, -1] = object_trans
@@ -662,9 +668,7 @@ class BasicPoseEstimator:
         x, y, z = T
 
         pose = np.array([x, y, z, *object_quat])
-        if any(np.isnan(pose)) or any(
-            np.isinf(pose)
-        ) or any(np.abs([x, y, z]) > 1000):
+        if any(np.isnan(pose)) or any(np.isinf(pose)) or any(np.abs([x, y, z]) > 1000):
             rospy.logwarn_throttle(
                 1,
                 f"Invalid pose estimate for {template.object_name} in {frame_id}: \
@@ -672,30 +676,33 @@ class BasicPoseEstimator:
             )
             return
 
-        if template.object_name in self.custom_pose_filtering and not self.custom_pose_filtering[template.object_name](pose):
+        if (
+            template.object_name in self.custom_pose_filtering
+            and not self.custom_pose_filtering[template.object_name](pose)
+        ):
             rospy.logwarn_throttle(
                 1,
                 f"Invalid pose estimate for {template.object_name} based on custom filter",
             )
             return
 
-
         qw, qx, qy, qz = object_quat
-        template_object.poses.loc[len(template_object.poses)] = [
-            stamp.secs, *pose
-        ]
+        template_object.poses.loc[len(template_object.poses)] = [stamp.secs, *pose]
         if len(template_object.poses) > template_object.min_buffer_size:
             old_rows = template_object.poses.iloc[
-                :len(template_object.poses) - template_object.min_buffer_size
+                : len(template_object.poses) - template_object.min_buffer_size
             ]
             keep_rows = template_object.poses.iloc[
-                len(template_object.poses) - template_object.min_buffer_size:
+                len(template_object.poses) - template_object.min_buffer_size :
             ]
             if template_object.max_history > 0:
                 template_object.poses = pd.concat(
                     [
                         old_rows.loc[
-                            (old_rows.stamp < stamp.secs - template_object.max_history).index
+                            (
+                                old_rows.stamp
+                                < stamp.secs - template_object.max_history
+                            ).index
                         ],
                         keep_rows,
                     ]
@@ -707,7 +714,9 @@ class BasicPoseEstimator:
                         keep_rows,
                     ]
                 )
-            template_object.poses = template_object.poses.iloc[-template_object.max_buffer_size:]
+            template_object.poses = template_object.poses.iloc[
+                -template_object.max_buffer_size :
+            ]
         template_object.poses.reset_index(drop=True, inplace=True)
         if self.debug:
             global debug_file
@@ -722,13 +731,10 @@ class BasicPoseEstimator:
         fused_pose = get_kmeans_center(poses)
 
         fused_pose_ang = quat2euler(fused_pose[3:])
-        _fused_pose = np.hstack([
-            fused_pose[:3],
-            fused_pose_ang
-        ])
-        _poses = np.hstack([
-            poses[:, :3],
-            np.array([quat2euler(q) for q in poses[:, 3:]])])
+        _fused_pose = np.hstack([fused_pose[:3], fused_pose_ang])
+        _poses = np.hstack(
+            [poses[:, :3], np.array([quat2euler(q) for q in poses[:, 3:]])]
+        )
         _err = _poses - _fused_pose
         variance = np.maximum(np.var(_err, 0), 0.00001)
 
@@ -744,21 +750,23 @@ class BasicPoseEstimator:
         self.br.sendTransform(transform_stamped)
         transform_zeroed = transform_stamped
 
-        rangle = np.pi/2
-        r, p, y = quat2euler(fused_pose[3:], axes='rzyx')
-        new_r, new_p, new_y = r, np.round(p / rangle) * rangle, np.round(y / rangle) * rangle
-        qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes='rzyx')
-
+        rangle = np.pi / 2
+        r, p, y = quat2euler(fused_pose[3:], axes="rzyx")
+        new_r, new_p, new_y = (
+            r,
+            np.round(p / rangle) * rangle,
+            np.round(y / rangle) * rangle,
+        )
+        qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes="rzyx")
 
         if template.object_name in self.custom_stabilized_orientation_transform:
-            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[template.object_name](
-                np.array([qw, qx, qy, qz])).tolist()
-
+            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[
+                template.object_name
+            ](np.array([qw, qx, qy, qz])).tolist()
 
         transform_zeroed.transform.rotation = Quaternion(qx, qy, qz, qw)
         transform_zeroed.child_frame_id = template.object_name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
-
 
         fused_pose_stamped = PoseStamped()
         fused_pose_stamped.header.stamp = rospy.Time.now()
@@ -816,7 +824,6 @@ if __name__ == "__main__":
         Path(RosPack().get_path("image_matching")) / "templates"
     )
 
-
     def get_matcher(matcher):
         if matcher == "coarse_loftr":
             image_match_producer = get_keypoints_match_producer(
@@ -860,11 +867,12 @@ if __name__ == "__main__":
             )
         elif matcher == "keyaffhard_flann":
             image_match_producer = get_keypoints_match_producer(
-            "keyaffhard", "flann", {"debug": True}, {"debug": True}
+                "keyaffhard", "flann", {"debug": True}, {"debug": True}
             )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
         return image_match_producer
+
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
     # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
@@ -881,8 +889,7 @@ if __name__ == "__main__":
 
     # NOTE: template.json values are real world dimensions corresponding to
     # width and height of image: [width, height] in meters.
-    templates = json.loads(open(
-        os.path.join(templates_dir, "templates.json")).read())
+    templates = json.loads(open(os.path.join(templates_dir, "templates.json")).read())
     for template in templates.keys():
         if template.startswith("_"):
             continue
@@ -899,7 +906,7 @@ if __name__ == "__main__":
 
         template_img = cv2.imread(template_path)
         regions = {}
-        regions[template]=[0, 0, 1, 1]
+        regions[template] = [0, 0, 1, 1]
         if isinstance(templates[template_filename], list):
             template_width = templates[template_filename][0]
             template_height = templates[template_filename][1]
@@ -922,41 +929,56 @@ if __name__ == "__main__":
             template_img_width, template_img_height = x2 - x1, y2 - y1
             region_img = template_img[y1:y2, x1:x2]
             print(template_img.shape, region_img.shape)
-            region_px_offset = ((x1 + x2) / 2 - template_img.shape[1] / 2, (y1 + y2) / 2 - template_img.shape[0] / 2)
-            region_offset = (region_px_offset[0] / template_img.shape[1] * template_width,
-                                region_px_offset[1] / template_img.shape[0] * template_height)
-            region_width, region_height = ((template_img_width/template_img.shape[1]) * template_width,
-                                              (template_img_height/template_img.shape[0]) * template_height)
+            region_px_offset = (
+                (x1 + x2) / 2 - template_img.shape[1] / 2,
+                (y1 + y2) / 2 - template_img.shape[0] / 2,
+            )
+            region_offset = (
+                region_px_offset[0] / template_img.shape[1] * template_width,
+                region_px_offset[1] / template_img.shape[0] * template_height,
+            )
+            region_width, region_height = (
+                (template_img_width / template_img.shape[1]) * template_width,
+                (template_img_height / template_img.shape[0]) * template_height,
+            )
 
             if region_img.shape[0] > 640 or region_img.shape[1] > 640:
-                rospy.logerr(
-                    f"Region {region_name} is too large! Resizing the image")
+                rospy.logerr(f"Region {region_name} is too large! Resizing the image")
                 if template_img_height > template_img_width:
                     template_img_width, template_img_height = 640, int(
-                        640 * template_img_width / template_img_height)
+                        640 * template_img_width / template_img_height
+                    )
                 else:
-                    template_img_width, template_img_height = int(
-                        640 * region_img.shape[0] / region_img.shape[1]), 640
-                region_img = cv2.resize(region_img, (template_img_height, template_img_width))
+                    template_img_width, template_img_height = (
+                        int(640 * region_img.shape[0] / region_img.shape[1]),
+                        640,
+                    )
+                region_img = cv2.resize(
+                    region_img, (template_img_height, template_img_width)
+                )
             rospy.loginfo(
                 f"Using template dimensions {region_width}x{region_height} \
     for template of size {region_img.shape[:2]} with offset {region_offset}"
             )
             pose_estimator.register_template(
-                region_img, region_name, (region_width, region_height),
+                region_img,
+                region_name,
+                (region_width, region_height),
                 template,
-                region_offset
+                region_offset,
             )
 
     print("Registered templates")
     try:
         if front_camera_topic is not None and front_camera_info_topic is not None:
-            front_camera_info = rospy.wait_for_message(front_camera_info_topic,
-                                                    CameraInfo, timeout=5)
+            front_camera_info = rospy.wait_for_message(
+                front_camera_info_topic, CameraInfo, timeout=5
+            )
             pose_estimator.register_camera(
                 front_camera_topic,
-                PinholeCamera.from_camera_info(front_camera_info,
-                                            "rect" in front_camera_topic),
+                PinholeCamera.from_camera_info(
+                    front_camera_info, "rect" in front_camera_topic
+                ),
             )
     except:
         rospy.logwarn("Front camera not found! Using default")
@@ -966,19 +988,22 @@ if __name__ == "__main__":
                 "auv4/front_cam_optical",
                 1024,
                 768,
-                452.3013610839844, 482.3131408691406, 526.00118954543, 396.61607947004813
-            ))
+                452.3013610839844,
+                482.3131408691406,
+                526.00118954543,
+                396.61607947004813,
+            ),
+        )
     try:
-        if bottom_camera_topic is not None and\
-                bottom_camera_info_topic is not None:
+        if bottom_camera_topic is not None and bottom_camera_info_topic is not None:
             bottom_camera_info = rospy.wait_for_message(
-                bottom_camera_info_topic, CameraInfo
-                , timeout=5
+                bottom_camera_info_topic, CameraInfo, timeout=5
             )
             pose_estimator.register_camera(
                 bottom_camera_topic,
-                PinholeCamera.from_camera_info(bottom_camera_info,
-                                            "rect" in bottom_camera_topic),
+                PinholeCamera.from_camera_info(
+                    bottom_camera_info, "rect" in bottom_camera_topic
+                ),
             )
     except:
         rospy.logwarn("Bottom camera not found! Using default")
@@ -988,8 +1013,12 @@ if __name__ == "__main__":
                 "auv4/bot_cam_optical",
                 1024,
                 768,
-                436.40875244140625, 467.6256103515625, 510.88065980075044, 376.3738157469634
-            ))
-        
+                436.40875244140625,
+                467.6256103515625,
+                510.88065980075044,
+                376.3738157469634,
+            ),
+        )
+
     rospy.on_shutdown(pose_estimator.teardown)
     rospy.spin()
