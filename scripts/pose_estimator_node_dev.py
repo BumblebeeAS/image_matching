@@ -518,10 +518,10 @@ class BasicPoseEstimator:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
                 continue
             if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-                rospy.logerr(f"Camera {camera_frame_id} image not received")
+                rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received")
                 continue
             if template_name not in self.templates:
-                rospy.logerr(f"Template {template_name} not registered")
+                rospy.logerr_throttle_identical(1.0, f"Template {template_name} not registered")
                 continue
             if (
                 camera_frame_id not in camera_stamp_poses
