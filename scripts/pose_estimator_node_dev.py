@@ -119,6 +119,14 @@ def transform_buoy_stabilized(quat):
 
 
 class BasicPoseEstimator:
+    def publish_img(self, img):
+        try:
+            self.visualization_pub.publish(
+                self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")
+            )
+        except Exception as e:
+            rospy.logerr(e)
+
     def __init__(
         self,
         image_match_producers: Dict[str, KeypointsMatchProducer],
@@ -143,9 +151,7 @@ class BasicPoseEstimator:
         self.debug = debug
         if debug:
             self.pose_estimator.visualize_callbacks.append(
-                lambda img: self.visualization_pub.publish(
-                    self.bridge.cv2_to_compressed_imgmsg(img, "jpeg")
-                )
+                self.publish_img
             )
 
         self.active_templates: Set[
@@ -188,9 +194,6 @@ class BasicPoseEstimator:
         self.clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8, 8))
 
         self.subscribers: Dict[str, rospy.Subscriber] = {}
-        self.timer = rospy.Timer(
-            rospy.Duration(0.3), self.cropped_image_callback, reset=True
-        )
         self.custom_pose_filtering: Dict[str, Callable[[np.ndarray], bool]] = {
             "buoy_seg": filter_forward_facing,
             "gate_seg": filter_forward_facing,
@@ -446,21 +449,19 @@ class BasicPoseEstimator:
         bridge = CvBridge()
 
         def callback(msg):
-            rospy.loginfo(f"Received image from {camera_frame_id}")
-            img = bridge.compressed_imgmsg_to_cv2(msg, "passthrough")
-
-            new_msg = bridge.cv2_to_compressed_imgmsg(img)
 
             if mutex.acquire(blocking=False):
                 try:
-                    self.latest_msgs[camera_frame_id] = new_msg
+                    self.latest_msgs[camera_frame_id] = msg
                 finally:
                     mutex.release()
+            else:
+                rospy.logwarn("Dropping message for %s", camera_frame_id)
 
         return callback
 
     def cropped_image_callback(self, debug=True):
-        rospy.loginfo_throttle(5, self.active_templates)
+        # rospy.loginfo_throttle(5, self.active_templates)
         with mutex:
             images = {}
             camera_stamp_poses: Dict[Tuple[float, np.ndarray]] = {}
@@ -470,7 +471,6 @@ class BasicPoseEstimator:
                 except CvBridgeError as e:
                     rospy.logerr(e)
                     continue
-
                 # CLAHE to L in LAB space
                 # lab_img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
                 # lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
@@ -508,9 +508,11 @@ class BasicPoseEstimator:
                         np.ones(3),
                     ),
                 )
+            self.latest_msgs = {}
         active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:
+            rospy.sleep(0.01)
             template_name, camera_frame_id = active_template
             if camera_frame_id not in self.pose_estimator.available_cameras:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
@@ -529,9 +531,10 @@ class BasicPoseEstimator:
                 continue
             _s = camera_stamp_poses[camera_frame_id][0].secs
             _ns = camera_stamp_poses[camera_frame_id][0].nsecs
-            rospy.logdebug_throttle(
-                10,
-                f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
+            if (_s ==0 and _ns == 0):
+                rospy.logerr(f"Camera {camera_frame_id} has no timestamp, skipping")
+                continue
+            rospy.logdebug_throttle(10, f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
             )
             template = self.templates[template_name]
             rot, trans = self.pose_estimator.compute_pose(
@@ -793,7 +796,7 @@ class BasicPoseEstimator:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    rospy.init_node("pose_estimator_dev", anonymous=False)
+    rospy.init_node("pose_estimator_dev", anonymous=False, log_level=rospy.INFO)
     debug = rospy.get_param("~debug", True)
     if debug:
         debug_file = open(f"debug_poses.csv", "w")
@@ -817,7 +820,7 @@ if __name__ == "__main__":
 
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
-    matcher = rospy.get_param("~matcher", "superpoint_superglue")
+    matcher = rospy.get_param("~matcher", "superpoint_lightglue")
 
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
@@ -880,7 +883,7 @@ if __name__ == "__main__":
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
     # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
-    matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue")
+    # matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
     if matcher not in matchers:
         matchers[matcher] = get_matcher(matcher)
     pose_estimator = BasicPoseEstimator(
@@ -946,16 +949,16 @@ if __name__ == "__main__":
                 (template_img_height / template_img.shape[0]) * template_height,
             )
 
-            if region_img.shape[0] > 640 or region_img.shape[1] > 640:
+            if region_img.shape[0] > 480 or region_img.shape[1] > 480:
                 rospy.logerr(f"Region {region_name} is too large! Resizing the image")
                 if template_img_height > template_img_width:
-                    template_img_width, template_img_height = 640, int(
-                        640 * template_img_width / template_img_height
+                    template_img_width, template_img_height = 480, int(
+                        480 * template_img_width / template_img_height
                     )
                 else:
                     template_img_width, template_img_height = (
-                        int(640 * region_img.shape[0] / region_img.shape[1]),
-                        640,
+                        int(480 * region_img.shape[0] / region_img.shape[1]),
+                        480,
                     )
                 region_img = cv2.resize(
                     region_img, (template_img_height, template_img_width)
@@ -971,6 +974,7 @@ if __name__ == "__main__":
                 template,
                 region_offset,
             )
+            rospy.sleep(0.05)
 
     print("Registered templates")
     try:
@@ -1023,6 +1027,10 @@ if __name__ == "__main__":
                 376.3738157469634,
             ),
         )
+
+    rospy.Timer(
+        rospy.Duration(0.05), pose_estimator.cropped_image_callback, reset=False
+    )
 
     rospy.on_shutdown(pose_estimator.teardown)
     rospy.spin()

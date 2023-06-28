@@ -12,7 +12,7 @@
   <!-- 0.159960313, 0.480099482 -->
   <!-- −0.12971906, −0.220308808 -->
   <!-- <arg name="detected_objects_topic" default="auv4" /> -->
-  <arg name="matcher" default="superpoint_superglue" />
+  <arg name="matcher" default="superpoint_lightglue" />
   <!-- <arg name="matcher" default="keyaffhard_flann" /> -->
   <!-- <arg name="matcher" default="coarse_loftr" /> -->
   <!-- <arg name="matcher" default="orb_flann" /> -->
