@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <launch>
   <!-- Use rectified image if available -->
-  <arg name="front_camera_topic" default="/auv4/front_cam/image_rect_color/compressed" />
+  <arg name="front_camera_topic" default="/auv4/front_cam/image_rect_color/bright/compressed" />
   <arg name="front_camera_info_topic" default="/auv4/front_cam/camera_info" />
   <!-- <arg name="bottom_camera_topic" default="/auv4/bot_cam/image_rect_color/compressed" /> -->
-  <arg name="bottom_camera_topic" default="/auv4/bot_cam/image_rect_color/compressed" />
+  <arg name="bottom_camera_topic" default="/auv4/bot_cam/image_rect_color/bright/compressed" />
   <arg name="bottom_camera_info_topic" default="/auv4/bot_cam/camera_info" />
   <arg name="visualization_topic" default="/impose_dev_vis/compressed" />
 
