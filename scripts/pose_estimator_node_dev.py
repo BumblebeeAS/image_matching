@@ -18,7 +18,7 @@ import tf2_ros
 from cv_bridge import CvBridge, CvBridgeError
 from rospkg import RosPack
 from sensor_msgs.msg import CameraInfo, CompressedImage
-from geometry_msgs.msg import Point, PoseStamped, Vector3, Quaternion, TransformStamped
+from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Vector3, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from bb_msgs.msg import DetectedObjects
 from bb_msgs.srv import (
@@ -79,7 +79,7 @@ class Template:
 class TemplateObject:
     name: str
     poses: pd.DataFrame
-    computed_pose: Optional[PoseStamped]
+    computed_pose: Optional[PoseWithCovarianceStamped]
     min_buffer_size: int
     max_buffer_size: int
     max_history: float
@@ -771,13 +771,14 @@ class BasicPoseEstimator:
         transform_zeroed.child_frame_id = template.object_name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
 
-        fused_pose_stamped = PoseStamped()
-        fused_pose_stamped.header.stamp = rospy.Time.now()
-        fused_pose_stamped.header.frame_id = "world_ned"
-        fused_pose_stamped.pose.position = Point(*fused_pose[:3])
-        fused_pose_stamped.pose.orientation = transform_zeroed.transform.rotation
+        fused_pose_covariance_stamped = PoseWithCovarianceStamped()
+        fused_pose_covariance_stamped.header = rospy.Time.now()
+        fused_pose_covariance_stamped.header.frame_id = "world_ned"
+        fused_pose_covariance_stamped.pose.pose.position = Point(*fused_pose[:3])
+        fused_pose_covariance_stamped.pose.pose.orientation = transform_zeroed.transform.rotation
+        fused_pose_covariance_stamped.pose.covariance = np.diag(variance).flatten().tolist()
 
-        template_object.computed_pose = fused_pose_stamped
+        template_object.computed_pose = fused_pose_covariance_stamped
 
         rospy.loginfo_throttle(
             5,
@@ -786,10 +787,10 @@ class BasicPoseEstimator:
         )
 
         odometry = Odometry()
-        odometry.header = fused_pose_stamped.header
-        odometry.pose.pose = fused_pose_stamped.pose
+        odometry.header = fused_pose_covariance_stamped.header
+        odometry.pose.pose = fused_pose_covariance_stamped.pose
         odometry.child_frame_id = template.object_name + "_stabilized"
-        odometry.pose.covariance = np.diag(variance).flatten().tolist()
+        odometry.pose = fused_pose_covariance_stamped.pose
         self.odom_pub.publish(odometry)
 
 
