@@ -14,14 +14,14 @@
         "object_name": "2023_torpedo_big",
         "dimensions": [1.19396645833, 0.63297157986],
         "regions": {
-            "hole": [0.3, 0.2, 0.7, 0.8]
+            "hole": [0.3, 0, 0.7, 0.8]
         }
     },
     "2023_torpedo_small.png": {
         "object_name": "2023_torpedo_small",
         "dimensions": [1.19396645833, 0.63297157986],
         "regions": {
-            "hole": [0.3, 0.2, 0.7, 0.8]
+            "hole": [0.3, 0, 0.7, 0.8]
         }
     },
     "torpedo_seg.png": [1.2192, 1.2192],

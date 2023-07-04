@@ -775,7 +775,7 @@ class BasicPoseEstimator:
         self.br.sendTransform(transform_zeroed)
 
         fused_pose_covariance_stamped = PoseWithCovarianceStamped()
-        fused_pose_covariance_stamped.header = rospy.Time.now()
+        fused_pose_covariance_stamped.header.stamp = rospy.Time.now()
         fused_pose_covariance_stamped.header.frame_id = "world_ned"
         fused_pose_covariance_stamped.pose.pose.position = Point(*fused_pose[:3])
         fused_pose_covariance_stamped.pose.pose.orientation = transform_zeroed.transform.rotation
