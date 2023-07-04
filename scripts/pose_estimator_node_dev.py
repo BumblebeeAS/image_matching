@@ -204,6 +204,9 @@ class BasicPoseEstimator:
             "bin_earth_1_part-0": filter_bottom_facing,
             "bin_earth_1_part-1": filter_bottom_facing,
             "bin_earth_1_part-2": filter_bottom_facing,
+            "bin_earth_2_part-0": filter_bottom_facing,
+            "bin_earth_2_part-1": filter_bottom_facing,
+            "bin_earth_2_part-2": filter_bottom_facing,
         }
 
         self.custom_stabilized_orientation_transform: Dict[
