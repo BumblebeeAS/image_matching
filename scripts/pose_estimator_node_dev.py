@@ -668,7 +668,14 @@ class BasicPoseEstimator:
 
         tfm_world_to_frame = camera_pose @ tfm_camera_to_frame
 
-        T, R, _, _ = decompose(tfm_world_to_frame)
+        try:
+            T, R, _, _ = decompose(tfm_world_to_frame)
+        except Exception as e:
+            rospy.logwarn_throttle(
+                1,
+                f"Failed to decompose {e}",
+            )
+            return
         object_quat = mat2quat(R)
 
         x, y, z = T
