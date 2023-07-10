@@ -272,12 +272,8 @@ class BasicPoseEstimator:
 
     def get_templates(self, req):
         active_templates = list(
-            set([template_name for template_name, _ in self.active_templates])
+            set([template_name + ":" + frame_id for (template_name, frame_id) in self.active_templates])
         )
-        active_templates = [
-            template_name + ": " + self.templates[template_name].matcher
-            for template_name in active_templates
-        ]
         return IMPoseEstimatorGetTemplatesResponse(
             self.pose_estimator.available_templates,
             active_templates,
@@ -452,14 +448,15 @@ class BasicPoseEstimator:
         bridge = CvBridge()
 
         def callback(msg):
-
+            if len(self.active_templates) == 0:
+                return
             if mutex.acquire(blocking=False):
                 try:
                     self.latest_msgs[camera_frame_id] = msg
                 finally:
                     mutex.release()
             else:
-                rospy.logwarn("Dropping message for %s", camera_frame_id)
+                rospy.logwarn_throttle(1.0, "Dropping message for %s", camera_frame_id)
 
         return callback
 
