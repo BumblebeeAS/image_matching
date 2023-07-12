@@ -1,6 +1,18 @@
 from .fast import FastKeypointProducer
 from .orb import OrbKeypointProducer
-from .sift import SiftKeypointProducer
-from .superpoint import SuperPointKeypointProducer
-from .alike import AlikeKeypointProducer
-from .KeyAffHard import KeyAffHardKeypointProducer
+try:
+    from .sift import SiftKeypointProducer
+except ImportError as e:
+    print(e)
+try:
+    from .superpoint import SuperPointKeypointProducer
+except ImportError as e:
+    print(e)
+try:
+    from .alike import AlikeKeypointProducer
+except ImportError as e:
+    print(e)
+try:
+    from .KeyAffHard import KeyAffHardKeypointProducer
+except ImportError as e:
+    print(e)
