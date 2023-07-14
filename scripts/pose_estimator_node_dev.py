@@ -134,6 +134,7 @@ class BasicPoseEstimator:
         detected_objects_topic=None,
         templates_dir="./",
         debug=False,
+        map_ned_frame="map_ned"
     ):
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -153,6 +154,7 @@ class BasicPoseEstimator:
             self.pose_estimator.visualize_callbacks.append(
                 self.publish_img
             )
+        self.map_ned_frame = map_ned_frame
 
         self.active_templates: Set[
             Tuple[str, str]
@@ -490,7 +492,7 @@ class BasicPoseEstimator:
                 images[camera_frame_id] = img
                 try:
                     camera_tf = self.tf_buffer.lookup_transform(
-                        "world_ned",
+                        self.map_ned_frame,
                         camera_frame_id,
                         msg.header.stamp,
                         rospy.Duration(0.1),
@@ -587,7 +589,7 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                "world_ned", camera_frame_id, req.header.stamp, rospy.Duration(0.1)
+                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(0.1)
             )
             camera_stamp_pose = (
                 req.header.stamp,
@@ -750,7 +752,7 @@ class BasicPoseEstimator:
 
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = rospy.Time.now()
-        transform_stamped.header.frame_id = "world_ned"
+        transform_stamped.header.frame_id = self.map_ned_frame
         transform_stamped.child_frame_id = template.object_name + "_optical"
 
         transform_stamped.transform.translation = Vector3(*fused_pose[:3])
@@ -780,7 +782,7 @@ class BasicPoseEstimator:
 
         fused_pose_covariance_stamped = PoseWithCovarianceStamped()
         fused_pose_covariance_stamped.header.stamp = rospy.Time.now()
-        fused_pose_covariance_stamped.header.frame_id = "world_ned"
+        fused_pose_covariance_stamped.header.frame_id = self.map_ned_frame
         fused_pose_covariance_stamped.pose.pose.position = Point(*fused_pose[:3])
         fused_pose_covariance_stamped.pose.pose.orientation = transform_zeroed.transform.rotation
         fused_pose_covariance_stamped.pose.covariance = np.diag(variance).flatten().tolist()
@@ -829,6 +831,7 @@ if __name__ == "__main__":
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
     matcher = rospy.get_param("~matcher", "superpoint_lightglue")
+    map_ned_frame = rospy.get_param("~map_ned_frame", "map_ned")
 
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
@@ -900,6 +903,7 @@ if __name__ == "__main__":
         detected_objects_topic,
         templates_dir,
         debug,
+        map_ned_frame
     )
 
     # NOTE: template.json values are real world dimensions corresponding to
