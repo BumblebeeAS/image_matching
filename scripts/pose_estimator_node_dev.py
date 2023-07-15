@@ -796,7 +796,7 @@ class BasicPoseEstimator:
         variance = np.maximum(np.var(_err, 0), 0.00001)
 
         transform_stamped = TransformStamped()
-        transform_stamped.header.stamp = rospy.Time.now()
+        transform_stamped.header.stamp = stamp
         transform_stamped.header.frame_id = self.map_ned_frame
         transform_stamped.child_frame_id = template.object_name + "_optical"
 
@@ -826,7 +826,7 @@ class BasicPoseEstimator:
         self.br.sendTransform(transform_zeroed)
 
         fused_pose_covariance_stamped = PoseWithCovarianceStamped()
-        fused_pose_covariance_stamped.header.stamp = rospy.Time.now()
+        fused_pose_covariance_stamped.header.stamp = stamp
         fused_pose_covariance_stamped.header.frame_id = self.map_ned_frame
         fused_pose_covariance_stamped.pose.pose.position = Point(*fused_pose[:3])
         fused_pose_covariance_stamped.pose.pose.orientation = (
