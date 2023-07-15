@@ -162,7 +162,7 @@ class BasicPoseEstimator:
 
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(15))
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
-        self.br = tf2_ros.TransformBroadcaster()
+        self.br = tf2_ros.StaticTransformBroadcaster()
         self.odom_pub = rospy.Publisher("impose_estimates", Odometry, queue_size=1)
 
         self.update_keypoint_matches_service = rospy.Service(
@@ -495,7 +495,7 @@ class BasicPoseEstimator:
                         self.map_ned_frame,
                         camera_frame_id,
                         msg.header.stamp,
-                        rospy.Duration(0.1),
+                        rospy.Duration(1.0),
                     )
                 except Exception as e:
                     rospy.logerr(e)
@@ -589,7 +589,7 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(0.1)
+                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(1)
             )
             camera_stamp_pose = (
                 req.header.stamp,
