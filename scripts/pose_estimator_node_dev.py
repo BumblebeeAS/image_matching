@@ -1,56 +1,61 @@
 #!/usr/bin/env python3
 
-from dataclasses import dataclass
+import copy
+import glob
 import json
 import logging
-from operator import attrgetter
 import os
+import threading
+from dataclasses import dataclass
+from operator import attrgetter
 from pathlib import Path
-import glob
-import copy
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 import cv2
-import pandas as pd
-from typing import Any, Dict, Optional, Set, Tuple, Callable
 import numpy as np
+import pandas as pd
 import rospy
 import tf2_ros
-from cv_bridge import CvBridge, CvBridgeError
-from rospkg import RosPack
-from sensor_msgs.msg import CameraInfo, CompressedImage
-from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Vector3, Quaternion, TransformStamped
-from nav_msgs.msg import Odometry
 from bb_msgs.msg import DetectedObjects
 from bb_msgs.srv import (
-    IMPoseEstimatorToggleTemplate,
-    IMPoseEstimatorToggleTemplateResponse,
+    IMPoseEstimatorConfig,
+    IMPoseEstimatorConfigResponse,
+    IMPoseEstimatorGetStatus,
+    IMPoseEstimatorGetStatusRequest,
+    IMPoseEstimatorGetStatusResponse,
     IMPoseEstimatorGetTemplates,
     IMPoseEstimatorGetTemplatesResponse,
     IMPoseEstimatorRegisterTemplate,
     IMPoseEstimatorRegisterTemplateRequest,
     IMPoseEstimatorRegisterTemplateResponse,
-    IMPoseEstimatorConfig,
-    IMPoseEstimatorConfigResponse,
+    IMPoseEstimatorToggleTemplate,
+    IMPoseEstimatorToggleTemplateResponse,
     IMPoseEstimatorUpdateKeypointMatches,
     IMPoseEstimatorUpdateKeypointMatchesRequest,
     IMPoseEstimatorUpdateKeypointMatchesResponse,
-    IMPoseEstimatorGetStatus,
-    IMPoseEstimatorGetStatusRequest,
-    IMPoseEstimatorGetStatusResponse,
 )
-
-import threading
-from transforms3d.quaternions import mat2quat, quat2mat, qinverse, qmult
-from transforms3d.euler import quat2euler, euler2quat, mat2euler
-from transforms3d.affines import compose, decompose
-
+from cv_bridge import CvBridge, CvBridgeError
 from feature_matcher.keypoints_match_producer import (
     KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
-from pose_estimator.pose_weighted_average import get_kmeans_center
+from geometry_msgs.msg import (
+    Point,
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    Quaternion,
+    TransformStamped,
+    Vector3,
+)
+from nav_msgs.msg import Odometry
 from pose_estimator.PinholeCamera import PinholeCamera
 from pose_estimator.pose_estimator import PoseEstimator
+from pose_estimator.pose_weighted_average import get_kmeans_center
+from rospkg import RosPack
+from sensor_msgs.msg import CameraInfo, CompressedImage
+from transforms3d.affines import compose, decompose
+from transforms3d.euler import euler2quat, mat2euler, quat2euler
+from transforms3d.quaternions import mat2quat, qinverse, qmult, quat2mat
 
 mutex = threading.Lock()
 
@@ -134,7 +139,7 @@ class BasicPoseEstimator:
         detected_objects_topic=None,
         templates_dir="./",
         debug=False,
-        map_ned_frame="map_ned"
+        map_ned_frame="map_ned",
     ):
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -151,9 +156,7 @@ class BasicPoseEstimator:
 
         self.debug = debug
         if debug:
-            self.pose_estimator.visualize_callbacks.append(
-                self.publish_img
-            )
+            self.pose_estimator.visualize_callbacks.append(self.publish_img)
         self.map_ned_frame = map_ned_frame
 
         self.active_templates: Set[
@@ -274,7 +277,12 @@ class BasicPoseEstimator:
 
     def get_templates(self, req):
         active_templates = list(
-            set([template_name + ":" + frame_id for (template_name, frame_id) in self.active_templates])
+            set(
+                [
+                    template_name + ":" + frame_id
+                    for (template_name, frame_id) in self.active_templates
+                ]
+            )
         )
         return IMPoseEstimatorGetTemplatesResponse(
             self.pose_estimator.available_templates,
@@ -283,7 +291,7 @@ class BasicPoseEstimator:
         )
 
     def toggle_template(self, req):
-        if req.template_name == "" and req.enabled == False:
+        if req.template_name == "" and req.enabled is False:
             print("Disabling all templates")
             self.active_templates.clear()
             return IMPoseEstimatorToggleTemplateResponse(
@@ -301,7 +309,7 @@ class BasicPoseEstimator:
         if req.enabled:
             self.active_templates.add((req.template_name, req.camera_frame_id))
         else:
-            if not (req.template_name, req.camera_frame_id) in self.active_templates:
+            if (req.template_name, req.camera_frame_id) not in self.active_templates:
                 return IMPoseEstimatorToggleTemplateResponse(
                     False, f"Template {req.template_name} not active"
                 )
@@ -447,8 +455,6 @@ class BasicPoseEstimator:
         self.pose_estimator.register_camera(camera)
 
     def msg_callback(self, camera_frame_id):
-        bridge = CvBridge()
-
         def callback(msg):
             if len(self.active_templates) == 0:
                 return
@@ -520,10 +526,14 @@ class BasicPoseEstimator:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
                 continue
             if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-                rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received")
+                rospy.logerr_throttle_identical(
+                    1.0, f"Camera {camera_frame_id} image not received"
+                )
                 continue
             if template_name not in self.templates:
-                rospy.logerr_throttle_identical(1.0, f"Template {template_name} not registered")
+                rospy.logerr_throttle_identical(
+                    1.0, f"Template {template_name} not registered"
+                )
                 continue
             if (
                 camera_frame_id not in camera_stamp_poses
@@ -533,10 +543,12 @@ class BasicPoseEstimator:
                 continue
             _s = camera_stamp_poses[camera_frame_id][0].secs
             _ns = camera_stamp_poses[camera_frame_id][0].nsecs
-            if (_s ==0 and _ns == 0):
+            if _s == 0 and _ns == 0:
                 rospy.logerr(f"Camera {camera_frame_id} has no timestamp, skipping")
                 continue
-            rospy.logdebug_throttle(10, f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
+            rospy.logdebug_throttle(
+                10,
+                f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
             )
             template = self.templates[template_name]
             rot, trans = self.pose_estimator.compute_pose(
@@ -560,9 +572,9 @@ class BasicPoseEstimator:
 
                 self.update_raw_pose(
                     rot,
-                    trans, 
+                    trans,
                     camera_frame_id,
-                    template, 
+                    template,
                     camera_stamp_poses[camera_frame_id][0],
                 )
 
@@ -597,7 +609,10 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(0.1)
+                self.map_ned_frame,
+                camera_frame_id,
+                req.header.stamp,
+                rospy.Duration(0.1),
             )
             camera_stamp_pose = (
                 req.header.stamp,
@@ -651,10 +666,8 @@ class BasicPoseEstimator:
                 False, "Failed to compute pose!"
             )
         return IMPoseEstimatorUpdateKeypointMatchesResponse(True, "")
-    
-    def update_raw_pose(
-        self, rot, trans, frame_id, template: Template, stamp
-    ):
+
+    def update_raw_pose(self, rot, trans, frame_id, template: Template, stamp):
         """
         Updates the pose estimate of the template in the camera frame with no filtering
 
@@ -666,7 +679,7 @@ class BasicPoseEstimator:
             stamp: timestamp of the image
         """
         transform = TransformStamped()
-        transform.header.stamp = stamp 
+        transform.header.stamp = stamp
         transform.header.frame_id = frame_id
         transform.child_frame_id = f"{template.name}_raw_optical"
 
@@ -675,7 +688,6 @@ class BasicPoseEstimator:
         transform.transform.rotation = Quaternion(q[1], q[2], q[3], q[0])
 
         self.br.sendTransform(transform)
-
 
     def update_pose(
         self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
@@ -817,8 +829,12 @@ class BasicPoseEstimator:
         fused_pose_covariance_stamped.header.stamp = rospy.Time.now()
         fused_pose_covariance_stamped.header.frame_id = self.map_ned_frame
         fused_pose_covariance_stamped.pose.pose.position = Point(*fused_pose[:3])
-        fused_pose_covariance_stamped.pose.pose.orientation = transform_zeroed.transform.rotation
-        fused_pose_covariance_stamped.pose.covariance = np.diag(variance).flatten().tolist()
+        fused_pose_covariance_stamped.pose.pose.orientation = (
+            transform_zeroed.transform.rotation
+        )
+        fused_pose_covariance_stamped.pose.covariance = (
+            np.diag(variance).flatten().tolist()
+        )
 
         template_object.computed_pose = fused_pose_covariance_stamped
 
@@ -842,7 +858,7 @@ if __name__ == "__main__":
     rospy.init_node("pose_estimator_dev", anonymous=False, log_level=rospy.INFO)
     debug = rospy.get_param("~debug", True)
     if debug:
-        debug_file = open(f"debug_poses.csv", "w")
+        debug_file = open("debug_poses.csv", "w")
         rospy.loginfo(f"Writing debug poses to {os.path.abspath(debug_file.name)}")
         rospy.on_shutdown(lambda: debug_file.close())
     front_camera_topic = rospy.get_param(
@@ -936,7 +952,7 @@ if __name__ == "__main__":
         detected_objects_topic,
         templates_dir,
         debug,
-        map_ned_frame
+        map_ned_frame,
     )
 
     # NOTE: template.json values are real world dimensions corresponding to
