@@ -558,6 +558,14 @@ class BasicPoseEstimator:
                     f"YPR: {np.rad2deg(yaw):.2f}, {np.rad2deg(pitch):.2f}, {np.rad2deg(roll):.2f} {template_name} {trans}",
                 )
 
+                self.update_raw_pose(
+                    rot,
+                    trans, 
+                    camera_frame_id,
+                    template, 
+                    camera_stamp_poses[camera_frame_id][0],
+                )
+
                 self.update_pose(
                     rot,
                     trans,
@@ -643,6 +651,31 @@ class BasicPoseEstimator:
                 False, "Failed to compute pose!"
             )
         return IMPoseEstimatorUpdateKeypointMatchesResponse(True, "")
+    
+    def update_raw_pose(
+        self, rot, trans, frame_id, template: Template, stamp
+    ):
+        """
+        Updates the pose estimate of the template in the camera frame with no filtering
+
+        Args:
+            rot: 3x3 rotation matrix
+            trans: 3x1 translation vector
+            frame_id: camera frame id
+            template: Template object
+            stamp: timestamp of the image
+        """
+        transform = TransformStamped()
+        transform.header.stamp = stamp 
+        transform.header.frame_id = frame_id
+        transform.child_frame_id = f"{template.name}_raw_optical"
+
+        transform.transform.translation = Vector3(trans[0], trans[1], trans[2])
+        q = mat2quat(rot)
+        transform.transform.rotation = Quaternion(q[1], q[2], q[3], q[0])
+
+        self.br.sendTransform(transform)
+
 
     def update_pose(
         self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
