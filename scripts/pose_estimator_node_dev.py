@@ -84,7 +84,6 @@ class TemplateObject:
     max_buffer_size: int
     max_history: float
 
-
 def filter_forward_facing(pose):
     """
     Given pose np.array([x,y,z,qw,qx,qy,qz])
@@ -148,6 +147,7 @@ class BasicPoseEstimator:
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
         )
+        self.topics: Dict[str, str] = {}
 
         self.debug = debug
         if debug:
@@ -445,17 +445,27 @@ class BasicPoseEstimator:
             queue_size=1,
         )
         self.pose_estimator.register_camera(camera)
+        self.topics[camera.frame_id] = camera_topic
 
     def msg_callback(self, camera_frame_id):
         bridge = CvBridge()
 
         def callback(msg):
+            # print(f"cb: {self.active_templates}")
             if len(self.active_templates) == 0:
                 return
             if mutex.acquire(blocking=False):
                 try:
-                    self.latest_msgs[camera_frame_id] = msg
+                    print("Saving to: ", camera_frame_id)
+                    if msg.header.stamp > self.latest_msgs[camera_frame_id]:
+                        self.latest_msgs[camera_frame_id] = msg
+                        print("Saving recent timestamp: ", msg.header.stamp)
+                    else: 
+                        print("Received old timestamp! ", msg.header.stamp)
+                except Exception as e:
+                    print(e)
                 finally:
+                    print("Mutex released")
                     mutex.release()
             else:
                 rospy.logwarn_throttle(1.0, "Dropping message for %s", camera_frame_id)
@@ -511,6 +521,7 @@ class BasicPoseEstimator:
                     ),
                 )
             self.latest_msgs = {}
+            rospy.loginfo("End cb")
         active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:
@@ -520,7 +531,11 @@ class BasicPoseEstimator:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
                 continue
             if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-                rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received")
+                rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received, trying to restart")
+                try:
+                    self.register_camera(self.topics[camera_frame_id], self.pose_estimator.cameras[camera_frame_id])
+                except Exception as e:
+                    print(e)
                 continue
             if template_name not in self.templates:
                 rospy.logerr_throttle_identical(1.0, f"Template {template_name} not registered")
