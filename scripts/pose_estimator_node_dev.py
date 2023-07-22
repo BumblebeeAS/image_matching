@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import sys, traceback
 from dataclasses import dataclass
 import json
 import logging
@@ -456,16 +456,17 @@ class BasicPoseEstimator:
                 return
             if mutex.acquire(blocking=False):
                 try:
-                    print("Saving to: ", camera_frame_id)
-                    if msg.header.stamp > self.latest_msgs[camera_frame_id]:
+                    # print("Saving to: ", camera_frame_id)
+                    if camera_frame_id not in self.latest_msgs or msg.header.stamp > self.latest_msgs[camera_frame_id].header.stamp:
                         self.latest_msgs[camera_frame_id] = msg
-                        print("Saving recent timestamp: ", msg.header.stamp)
-                    else: 
-                        print("Received old timestamp! ", msg.header.stamp)
+                        # print("Saving recent timestamp: ", msg.header.stamp)
+                    # else: 
+                        # print("Received old timestamp! ", msg.header.stamp)
                 except Exception as e:
-                    print(e)
+                    print("ee")
+                    print(traceback.format_exc())
                 finally:
-                    print("Mutex released")
+                    # print("Mutex released")
                     mutex.release()
             else:
                 rospy.logwarn_throttle(1.0, "Dropping message for %s", camera_frame_id)
@@ -521,7 +522,7 @@ class BasicPoseEstimator:
                     ),
                 )
             self.latest_msgs = {}
-            rospy.loginfo("End cb")
+            # rospy.loginfo("End cb")
         active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:

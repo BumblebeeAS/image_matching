@@ -181,7 +181,7 @@ class BasicPoseLabeller:
             images[camera_frame_id] = img
             try:
                 camera_tf = self.tf_buffer.lookup_transform(
-                    camera_frame_id, "world_ned", msg.header.stamp,
+                    camera_frame_id, "map_ned", msg.header.stamp,
                     rospy.Duration(2)
                 )
             except Exception as e:
