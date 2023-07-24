@@ -569,10 +569,17 @@ class BasicPoseEstimator:
             )
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
+                yaw = np.rad2deg(yaw)
+                pitch = np.rad2deg(pitch)
+                roll = np.rad2deg(roll)
+
                 rospy.loginfo_throttle(
                     1,
-                    f"YPR: {np.rad2deg(yaw):.2f}, {np.rad2deg(pitch):.2f}, {np.rad2deg(roll):.2f} {template_name} {trans}",
+                    f"YPR: {yaw:.2f}, {pitch:.2f}, {roll:.2f} {template_name} {trans}",
                 )
+
+                if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([yaw, pitch, roll]) < 1e-10):
+                    continue
 
                 self.update_pose(
                     rot,
@@ -645,6 +652,20 @@ class BasicPoseEstimator:
             ].reprojection_error_threshold,
             debug=self.debug,
         )
+
+        euler = mat2euler(rot, "szyx")
+        y = np.rad2deg(euler[0])
+        p = np.rad2deg(euler[1])
+        r = np.rad2deg(euler[2])
+
+        print(f"Estimated Rot: {y}, {p}, {r}")
+        print(f"Estimated trans: {trans}")
+
+        if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([y, p, r]) < 1e-10):
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, "Failed to compute pose! All values are near zero!"
+            )
+
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
                 rot,
@@ -805,8 +826,7 @@ class BasicPoseEstimator:
 
         template_object.computed_pose = fused_pose_covariance_stamped
 
-        rospy.loginfo_throttle(
-            5,
+        rospy.loginfo(
             f"Published transform {template.object_name}_stabilized:\
                 {transform_stamped.transform.translation}",
         )
