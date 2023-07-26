@@ -16,3 +16,8 @@ try:
     from .KeyAffHard import KeyAffHardKeypointProducer
 except ImportError as e:
     print(e)
+
+try: 
+    from .disk import DISKKeypointProducer
+except ImportError as e:
+    print(e)

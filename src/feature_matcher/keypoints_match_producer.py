@@ -287,6 +287,8 @@ def get_keypoints_match_producer(
         ("superpoint", "lightglue"),
         ("superpoint", "bf"),
         ("superpoint", "flann"),
+        # DISK detectors
+        ("disk", "lightglue"),
         # ALIKE detectors
         ("alike", "bf"),
         ("alike", "flann"),
@@ -319,6 +321,11 @@ def get_keypoints_match_producer(
         from feature_matcher.keypoint_producer import SuperPointKeypointProducer
 
         return SuperPointKeypointProducer(config)
+    
+    def get_disk(config): 
+        from feature_matcher.keypoint_producer import DISKKeypointProducer
+
+        return DISKKeypointProducer(config)
 
     def get_orb(config):
         from feature_matcher.keypoint_producer import OrbKeypointProducer
@@ -394,6 +401,7 @@ def get_keypoints_match_producer(
 
     extractors = {
         "superpoint": get_superpoint,
+        "disk": get_disk, 
         "orb": get_orb,
         "sift": get_sift,
         "fast": get_fast,
@@ -416,7 +424,10 @@ def get_keypoints_match_producer(
     if extractor is not None and extractor in extractors:
         extractor = extractors[extractor](extractor_config)
     if matcher in matchers:
-        matcher = matchers[matcher](matcher_config)
+        if matcher == "lightglue" and extractors == "disk":
+            matcher = get_lightglue({"weights": "disk"})
+        else: 
+            matcher = matchers[matcher](matcher_config)
 
     if extractor is not None:
         from feature_matcher.two_stage_match_producer import TwoStageMatchProducer

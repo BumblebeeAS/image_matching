@@ -28,7 +28,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
             "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
         )
 
-        assert self.config["weights"] in ["superpoint"]
+        assert self.config["weights"] in ["disk", "superpoint"]
         self.superglue = (
             LightGlue(pretrained=self.config.get("weights", "superpoint"))
             .eval()
