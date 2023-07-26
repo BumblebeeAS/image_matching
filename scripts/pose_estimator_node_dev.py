@@ -133,7 +133,7 @@ class BasicPoseEstimator:
         detected_objects_topic=None,
         templates_dir="./",
         debug=False,
-        map_ned_frame="map_ned"
+        map_ned_frame="world_ned"
     ):
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -160,7 +160,7 @@ class BasicPoseEstimator:
             Tuple[str, str]
         ] = set()  # (template_name, camera_frame_id)
 
-        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(15))
+        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(30))
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
         self.br = tf2_ros.StaticTransformBroadcaster()
         self.odom_pub = rospy.Publisher("impose_estimates", Odometry, queue_size=1)
@@ -506,7 +506,7 @@ class BasicPoseEstimator:
                         self.map_ned_frame,
                         camera_frame_id,
                         msg.header.stamp,
-                        rospy.Duration(1.0),
+                        rospy.Duration(3.0),
                     )
                 except Exception as e:
                     rospy.logerr(e)
@@ -612,7 +612,7 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(1)
+                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(3.0)
             )
             camera_stamp_pose = (
                 req.header.stamp,
@@ -867,7 +867,7 @@ if __name__ == "__main__":
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
     matcher = rospy.get_param("~matcher", "superpoint_lightglue")
-    map_ned_frame = rospy.get_param("~map_ned_frame", "map_ned")
+    map_ned_frame = rospy.get_param("~map_ned_frame", "world_ned")
 
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
@@ -922,6 +922,10 @@ if __name__ == "__main__":
         elif matcher == "keyaffhard_flann":
             image_match_producer = get_keypoints_match_producer(
                 "keyaffhard", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "disk_lightglue": 
+            image_match_producer = get_keypoints_match_producer(
+                "disk", "lightglue", {"debug": True}, {"debug": True, "weights": "disk"}
             )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
