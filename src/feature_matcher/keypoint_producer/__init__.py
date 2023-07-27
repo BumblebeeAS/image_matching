@@ -1,5 +1,6 @@
 from .fast import FastKeypointProducer
 from .orb import OrbKeypointProducer
+
 try:
     from .sift import SiftKeypointProducer
 except ImportError as e:
@@ -17,7 +18,12 @@ try:
 except ImportError as e:
     print(e)
 
-try: 
+try:
     from .disk import DISKKeypointProducer
+except ImportError as e:
+    print(e)
+
+try:
+    from .dalf import DALFKeypointProducer
 except ImportError as e:
     print(e)

@@ -289,6 +289,9 @@ def get_keypoints_match_producer(
         ("superpoint", "flann"),
         # DISK detectors
         ("disk", "lightglue"),
+        # DALF detectors
+        ("dalf", "bf"),
+        ("dalf", "flann"),
         # ALIKE detectors
         ("alike", "bf"),
         ("alike", "flann"),
@@ -346,6 +349,11 @@ def get_keypoints_match_producer(
         from feature_matcher.keypoint_producer import AlikeKeypointProducer
 
         return AlikeKeypointProducer(config)
+    
+    def get_dalf(config):
+        from feature_matcher.keypoint_producer import DALFKeypointProducer
+
+        return DALFKeypointProducer(config)
 
     # Feature matchers:
 
@@ -407,6 +415,7 @@ def get_keypoints_match_producer(
         "fast": get_fast,
         "alike": get_alike,
         "keyaffhard": get_keyaffhard,
+        "dalf": get_dalf
     }
     matchers = {
         "superglue": get_superglue,
