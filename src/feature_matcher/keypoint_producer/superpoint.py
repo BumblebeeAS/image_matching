@@ -75,9 +75,8 @@ class SuperPointKeypointProducer(KeypointProducer):
         """
         with torch.no_grad():
             pred = self.superpoint(self.preprocess(image))
-        return Keypoints(
-            image.shape[:2],
-            pred["keypoints"][0].cpu().detach().numpy(),
-            pred["descriptors"][0].cpu().detach().numpy().transpose(),
-            pred["scores"][0].cpu().detach().numpy(),
-        )
+            keypoints = pred["keypoints"][0].cpu().numpy()
+            descriptors = pred["descriptors"][0].cpu().numpy().transpose()
+            scores = pred["scores"][0].cpu().numpy()
+
+        return Keypoints(image.shape[:2], keypoints, descriptors, scores)

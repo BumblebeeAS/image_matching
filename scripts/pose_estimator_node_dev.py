@@ -927,6 +927,10 @@ if __name__ == "__main__":
             image_match_producer = get_keypoints_match_producer(
                 "disk", "lightglue", {"debug": True}, {"debug": True, "weights": "disk"}
             )
+        elif matcher == "dalf_flann": 
+            image_match_producer = get_keypoints_match_producer(
+                "dalf", "flann", {"debug": True}, {"debug": True}
+            )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
         return image_match_producer
