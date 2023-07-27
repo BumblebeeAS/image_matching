@@ -1,3 +1,5 @@
+import cv2
+import kornia
 import torch
 import numpy as np
 
@@ -7,15 +9,14 @@ from feature_matcher.two_stage_match_producer import KeypointProducer
 from lightglue import DISK
 
 
-
-class DISKKeypointProducer(KeypointProducer): 
+class DISKKeypointProducer(KeypointProducer):
     def __init__(self, config=None) -> None:
-        self.disk = DISK().eval().to("cuda" if torch.cuda.is_available() else "cpu")
- 
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.disk = DISK(weights="epipolar").eval().to(self.device)
 
-    def __call__(self, image:np.ndarray) -> Keypoints:
+    def __call__(self, image: np.ndarray) -> Keypoints:
         """
-        Finds keypoits within image using DISK. 
+        Finds keypoints within image using DISK.
 
         Args:
             image (_type_): numpy array of image
@@ -24,13 +25,21 @@ class DISKKeypointProducer(KeypointProducer):
         Returns:
             Keypoints: _description_
         """
-        img_dict = {"image": image}
-        res_dict = self.disk.forward(img_dict)
+        with torch.no_grad():
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_tensor = kornia.image_to_tensor(rgb, False).float() / 255.0
+            image_tensor = image_tensor.to(self.device)
 
-        keypoints= res_dict["keypoints"]
-        descriptors = res_dict["descriptors"]
-        scores = res_dict["keypoint_scores"]
+            img_dict = {"image": image_tensor}
+            res_dict = self.disk.forward(img_dict)
+
+            keypoints = np.squeeze(res_dict["keypoints"].cpu().numpy(), axis=0)
+            descriptors = np.squeeze(res_dict["descriptors"].cpu().numpy(), axis=0)
+            scores = np.squeeze(res_dict["keypoint_scores"].cpu().numpy(), axis=0)
 
         return Keypoints(
-            image.shape[:2], keypoints, descriptors, scores, 
+            image.shape[:2],
+            keypoints,
+            descriptors,
+            scores,
         )
