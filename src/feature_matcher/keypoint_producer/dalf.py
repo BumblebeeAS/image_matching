@@ -23,7 +23,7 @@ class DALFKeypointProducer(KeypointProducer):
     def __call__(self, image) -> Keypoints:
         with self.lock:
             keypoints, descriptors = self.dalf.detectAndCompute(image)
-            keypoints = np.array([kp.pt for kp in keypoints])
-            return Keypoints(
-                image.shape[:2], keypoints, descriptors, np.ones(len(keypoints))
-            )
+        keypoints = np.array([kp.pt for kp in keypoints])
+        return Keypoints(
+            image.shape[:2], keypoints, descriptors, np.ones(len(keypoints))
+        )

@@ -1,6 +1,7 @@
+import threading
+
 import cv2
 import numpy as np
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
@@ -15,6 +16,7 @@ class FastKeypointProducer(KeypointProducer):
         )
         # self.fast = cv2.xfeatures2d.StarDetector_create()
         self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
+        self.lock = threading.Lock()
 
     def __call__(self, image: np.ndarray) -> Keypoints:
         """
@@ -27,8 +29,9 @@ class FastKeypointProducer(KeypointProducer):
             N keypoints.
         """
         keypoints = self.fast.detect(image, None)
-        keypoints, descriptors = self.brief.compute(image, keypoints)
-        keypoints = np.array([list(kp.pt) for kp in keypoints])
+        with self.lock:
+            keypoints, descriptors = self.brief.compute(image, keypoints)
+        keypoints = np.array([kp.pt for kp in keypoints])
         return Keypoints(
             image.shape[:2], keypoints, descriptors, np.ones(len(keypoints))
         )

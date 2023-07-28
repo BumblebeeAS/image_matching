@@ -1,6 +1,7 @@
+import threading
+
 import cv2
 import numpy as np
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
@@ -19,6 +20,7 @@ class OrbKeypointProducer(KeypointProducer):
             scoreType=cv2.ORB_FAST_SCORE,
             firstLevel=0,
         )
+        self.lock = threading.Lock()
 
     def __call__(self, image: np.ndarray) -> Keypoints:
         """
@@ -30,8 +32,9 @@ class OrbKeypointProducer(KeypointProducer):
         Returns:
             N keypoints.
         """
-        keypoints, descriptors = self.orb.detectAndCompute(image, None)
-        keypoints = np.array([list(kp.pt) for kp in keypoints])
+        with self.lock:
+            keypoints, descriptors = self.orb.detectAndCompute(image, None)
+        keypoints = np.array([kp.pt for kp in keypoints])
         return Keypoints(
             image.shape[:2], keypoints, descriptors, np.ones(len(keypoints))
         )

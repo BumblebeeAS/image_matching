@@ -1,7 +1,7 @@
+import threading
 from typing import Tuple
 
 import cv2
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
@@ -25,6 +25,7 @@ class BFKeypointMatcher(KeypointMatcher):
             crossCheck=config.get("cross_check", False),
             normType=get_norm_type(config.get("norm_type", "l2")),
         )
+        self.lock  = threading.Lock()
 
     def __call__(
         self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
@@ -39,7 +40,8 @@ class BFKeypointMatcher(KeypointMatcher):
             M Keypoints in the first image
             M Keypoints in the second image that matches to keypoints in first image.
         """
-        matches = self.matcher.match(keypoints1.descriptors, keypoints2.descriptors)
+        with self.lock:
+            matches = self.matcher.match(keypoints1.descriptors, keypoints2.descriptors)
         selected_matches = []
         matches1, matches2 = [], []
         for match in sorted(matches, key=lambda x: x.distance):

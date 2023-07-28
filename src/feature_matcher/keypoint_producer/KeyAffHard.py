@@ -1,10 +1,11 @@
+import threading
 from typing import Any
+
 import cv2
-import numpy as np
-import torch
 import kornia
 import kornia.feature as kornia_feature
-
+import numpy as np
+import torch
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
@@ -17,6 +18,7 @@ class KeyAffHardKeypointProducer(KeypointProducer):
             upright=False,
             device=self.device,
         )
+        self.lock = threading.Lock()
 
     def __call__(self, image: Any) -> Keypoints:
         """
@@ -32,10 +34,11 @@ class KeyAffHardKeypointProducer(KeypointProducer):
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image_tensor = kornia.image_to_tensor(rgb, False).float() / 255.0
             image_tensor = kornia.color.rgb_to_grayscale(image_tensor).to(self.device)
-            lafs, _, descriptors = self.keynet_affnet_hardnet(image_tensor)
-        keypoints = kornia_feature.get_laf_center(lafs)
-        keypoints = keypoints.cpu().numpy()
-        descriptors = descriptors.cpu().numpy()
+            with self.lock:
+                lafs, _, descriptors = self.keynet_affnet_hardnet(image_tensor)
+                keypoints = kornia_feature.get_laf_center(lafs)
+                keypoints = keypoints.cpu().numpy()
+                descriptors = descriptors.cpu().numpy()
 
         return Keypoints(
             image.shape[:2],

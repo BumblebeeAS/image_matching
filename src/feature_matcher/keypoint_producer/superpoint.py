@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from pathlib import Path
 
 SuperGlue_dir = os.path.abspath(
@@ -11,11 +12,10 @@ import logging
 import cv2
 import numpy as np
 import torch
-from models.superpoint import SuperPoint
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.tools import image2tensor
 from feature_matcher.two_stage_match_producer import KeypointProducer
+from models.superpoint import SuperPoint
 
 
 class SuperPointKeypointProducer(KeypointProducer):
@@ -50,7 +50,7 @@ class SuperPointKeypointProducer(KeypointProducer):
             self.superpoint = torch.jit.load(ts_file).eval().to(self.device)
         else:
             self.superpoint = SuperPoint(self.config).eval().to(self.device)
-
+        self.lock = threading.Lock()
     def preprocess(self, image) -> torch.Tensor:
         try:
             if image.shape[2] == 3:
@@ -73,8 +73,10 @@ class SuperPointKeypointProducer(KeypointProducer):
         Returns:
             N keypoints.
         """
+        preprocessed = self.preprocess(image)
         with torch.no_grad():
-            pred = self.superpoint(self.preprocess(image))
+            with self.lock:
+                pred = self.superpoint(preprocessed)
             keypoints = pred["keypoints"][0].cpu().numpy()
             descriptors = pred["descriptors"][0].cpu().numpy().transpose()
             scores = pred["scores"][0].cpu().numpy()

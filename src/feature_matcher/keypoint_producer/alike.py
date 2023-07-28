@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from pathlib import Path
 
 ALIKE_DIR = os.path.abspath(
@@ -12,9 +13,7 @@ import logging
 import cv2
 import numpy as np
 import torch
-
 from alike import ALike, configs
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 
@@ -63,6 +62,7 @@ class AlikeKeypointProducer(KeypointProducer):
 
         self.model = ALike(**configs[model], **self.config)
         self.sub_pixel = True
+        self.lock = threading.Lock()
 
     def preprocess(self, image) -> np.ndarray:
         if image.shape[2] == 1:
@@ -82,7 +82,10 @@ class AlikeKeypointProducer(KeypointProducer):
         Returns:
             N keypoints.
         """
-        pred = self.model(self.preprocess(image), sub_pixel=self.sub_pixel)
+        preprocessed = self.preprocess(image)
+
+        with self.lock:
+            pred = self.model(preprocessed, sub_pixel=self.sub_pixel)
         return Keypoints(
             image.shape[:2], pred["keypoints"], pred["descriptors"], pred["scores"]
         )

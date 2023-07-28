@@ -1,11 +1,10 @@
 import logging
+import threading
 from typing import Dict
 
 import torch
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
-
 from lightglue import LightGlue
 
 
@@ -34,6 +33,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
             .eval()
             .to(self.device)
         )
+        self.lock = threading.Lock()
 
     def preprocess(self, keypoints1: Keypoints, keypoints2: Keypoints) -> Keypoints:
         data = {}
@@ -92,7 +92,8 @@ class LightglueKeypointMatcher(KeypointMatcher):
 
     def forward(self, data) -> Dict:
         with torch.no_grad():
-            pred: Dict = self.superglue(data)
+            with self.lock:
+                pred: Dict = self.superglue(data)
         return pred
 
     def __call__(

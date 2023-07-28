@@ -1,8 +1,8 @@
+import threading
 from typing import Tuple
 
 import cv2
 import numpy as np
-
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
@@ -16,6 +16,7 @@ class FlannKeypointMatcher(KeypointMatcher):
         if not isinstance(num_matches, int):
             raise ValueError("num_matches must be an integer")
         self.num_matches = num_matches
+        self.lock = threading.Lock()
 
     def __call__(
         self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
@@ -30,11 +31,12 @@ class FlannKeypointMatcher(KeypointMatcher):
             M Keypoints in the first image
             M Keypoints in the second image that matches to keypoints in first image.
         """
-        matches = self.matcher.knnMatch(
-            np.ascontiguousarray(keypoints1.descriptors),
-            np.ascontiguousarray(keypoints2.descriptors),
-            2,
-        )
+        with self.lock:
+            matches = self.matcher.knnMatch(
+                np.ascontiguousarray(keypoints1.descriptors),
+                np.ascontiguousarray(keypoints2.descriptors),
+                2,
+            )
         selected_matches = []
         matches1, matches2 = [], []
         # -- Filter matches using the Lowe's ratio test
