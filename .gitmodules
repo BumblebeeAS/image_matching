@@ -22,3 +22,6 @@
 [submodule "src/feature_matcher/models/LightGlue"]
 	path = src/feature_matcher/models/LightGlue
 	url = git@github.com:cvg/LightGlue.git
+[submodule "src/feature_matcher/models/DALF_CVPR_2023"]
+	path = src/feature_matcher/models/DALF_CVPR_2023
+	url = git@github.com:verlab/DALF_CVPR_2023.git

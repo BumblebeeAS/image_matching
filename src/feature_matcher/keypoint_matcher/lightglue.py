@@ -28,7 +28,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
             "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
         )
 
-        assert self.config["weights"] in ["superpoint"]
+        assert self.config["weights"] in ["disk", "superpoint"]
         self.superglue = (
             LightGlue(pretrained=self.config.get("weights", "superpoint"))
             .eval()
@@ -99,10 +99,11 @@ class LightglueKeypointMatcher(KeypointMatcher):
         self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
     ) -> Dict:
         preprocessed = self.preprocess(keypoints1, keypoints2)
-        preds = self.forward(preprocessed)
 
-        matches = preds["matches0"][0].cpu().numpy()
-        confidence = preds["matching_scores0"][0].cpu().detach().numpy()
+        with torch.no_grad(): 
+            preds = self.superglue(preprocessed)
+            matches = preds["matches0"][0].cpu().numpy()
+            confidence = preds["matching_scores0"][0].cpu().numpy()
 
         # Sort them in the order of their confidence.
         match_conf = []

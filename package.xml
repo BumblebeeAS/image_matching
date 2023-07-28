@@ -15,8 +15,8 @@
   <depend>bb_msgs</depend>
 
   <depend>image_transport</depend>
-  <depend>camera_models</depend>
 
   <depend>message_generation</depend>
   <depend>message_runtime</depend>
+  <exec_depend>python-transforms3d-pip</exec_depend>
 </package>

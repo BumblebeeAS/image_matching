@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-
-import copy
-import glob
+import sys, traceback
+from dataclasses import dataclass
 import json
 import logging
 import os
@@ -89,7 +88,6 @@ class TemplateObject:
     max_buffer_size: int
     max_history: float
 
-
 def filter_forward_facing(pose):
     """
     Given pose np.array([x,y,z,qw,qx,qy,qz])
@@ -139,7 +137,7 @@ class BasicPoseEstimator:
         detected_objects_topic=None,
         templates_dir="./",
         debug=False,
-        map_ned_frame="map_ned",
+        map_ned_frame="world_ned"
     ):
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -153,6 +151,7 @@ class BasicPoseEstimator:
         self.visualization_pub = rospy.Publisher(
             visualization_topic, CompressedImage, queue_size=1
         )
+        self.topics: Dict[str, str] = {}
 
         self.debug = debug
         if debug:
@@ -163,9 +162,9 @@ class BasicPoseEstimator:
             Tuple[str, str]
         ] = set()  # (template_name, camera_frame_id)
 
-        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(15))
+        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(30))
         self.tf_sub = tf2_ros.TransformListener(self.tf_buffer)
-        self.br = tf2_ros.TransformBroadcaster()
+        self.br = tf2_ros.StaticTransformBroadcaster()
         self.odom_pub = rospy.Publisher("impose_estimates", Odometry, queue_size=1)
 
         self.update_keypoint_matches_service = rospy.Service(
@@ -453,15 +452,26 @@ class BasicPoseEstimator:
             queue_size=1,
         )
         self.pose_estimator.register_camera(camera)
+        self.topics[camera.frame_id] = camera_topic
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
+            # print(f"cb: {self.active_templates}")
             if len(self.active_templates) == 0:
                 return
             if mutex.acquire(blocking=False):
                 try:
-                    self.latest_msgs[camera_frame_id] = msg
+                    # print("Saving to: ", camera_frame_id)
+                    if camera_frame_id not in self.latest_msgs or msg.header.stamp > self.latest_msgs[camera_frame_id].header.stamp:
+                        self.latest_msgs[camera_frame_id] = msg
+                        # print("Saving recent timestamp: ", msg.header.stamp)
+                    # else: 
+                        # print("Received old timestamp! ", msg.header.stamp)
+                except Exception as e:
+                    print("ee")
+                    print(traceback.format_exc())
                 finally:
+                    # print("Mutex released")
                     mutex.release()
             else:
                 rospy.logwarn_throttle(1.0, "Dropping message for %s", camera_frame_id)
@@ -501,7 +511,7 @@ class BasicPoseEstimator:
                         self.map_ned_frame,
                         camera_frame_id,
                         msg.header.stamp,
-                        rospy.Duration(0.1),
+                        rospy.Duration(3.0),
                     )
                 except Exception as e:
                     rospy.logerr(e)
@@ -517,6 +527,7 @@ class BasicPoseEstimator:
                     ),
                 )
             self.latest_msgs = {}
+            # rospy.loginfo("End cb")
         active_templates = copy.deepcopy(self.active_templates)
 
         for active_template in active_templates:
@@ -526,9 +537,11 @@ class BasicPoseEstimator:
                 rospy.logerr(f"Camera {camera_frame_id} not registered")
                 continue
             if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-                rospy.logerr_throttle_identical(
-                    1.0, f"Camera {camera_frame_id} image not received"
-                )
+                rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received, trying to restart")
+                try:
+                    self.register_camera(self.topics[camera_frame_id], self.pose_estimator.cameras[camera_frame_id])
+                except Exception as e:
+                    print(e)
                 continue
             if template_name not in self.templates:
                 rospy.logerr_throttle_identical(
@@ -565,18 +578,17 @@ class BasicPoseEstimator:
             )
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
+                yaw = np.rad2deg(yaw)
+                pitch = np.rad2deg(pitch)
+                roll = np.rad2deg(roll)
+
                 rospy.loginfo_throttle(
                     1,
-                    f"YPR: {np.rad2deg(yaw):.2f}, {np.rad2deg(pitch):.2f}, {np.rad2deg(roll):.2f} {template_name} {trans}",
+                    f"YPR: {yaw:.2f}, {pitch:.2f}, {roll:.2f} {template_name} {trans}",
                 )
 
-                self.update_raw_pose(
-                    rot,
-                    trans,
-                    camera_frame_id,
-                    template,
-                    camera_stamp_poses[camera_frame_id][0],
-                )
+                if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([yaw, pitch, roll]) < 1e-10):
+                    continue
 
                 self.update_pose(
                     rot,
@@ -609,10 +621,7 @@ class BasicPoseEstimator:
             )
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame,
-                camera_frame_id,
-                req.header.stamp,
-                rospy.Duration(0.1),
+                self.map_ned_frame, camera_frame_id, req.header.stamp, rospy.Duration(3.0)
             )
             camera_stamp_pose = (
                 req.header.stamp,
@@ -652,6 +661,20 @@ class BasicPoseEstimator:
             ].reprojection_error_threshold,
             debug=self.debug,
         )
+
+        euler = mat2euler(rot, "szyx")
+        y = np.rad2deg(euler[0])
+        p = np.rad2deg(euler[1])
+        r = np.rad2deg(euler[2])
+
+        print(f"Estimated Rot: {y}, {p}, {r}")
+        print(f"Estimated trans: {trans}")
+
+        if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([y, p, r]) < 1e-10):
+            return IMPoseEstimatorUpdateKeypointMatchesResponse(
+                False, "Failed to compute pose! All values are near zero!"
+            )
+
         if rot is not None and trans is not None and trans[2] > 0:
             self.update_pose(
                 rot,
@@ -838,8 +861,7 @@ class BasicPoseEstimator:
 
         template_object.computed_pose = fused_pose_covariance_stamped
 
-        rospy.loginfo_throttle(
-            5,
+        rospy.loginfo(
             f"Published transform {template.object_name}_stabilized:\
                 {transform_stamped.transform.translation}",
         )
@@ -880,7 +902,7 @@ if __name__ == "__main__":
     detected_objects_topic = rospy.get_param("~detected_objects_topic", None)
 
     matcher = rospy.get_param("~matcher", "superpoint_lightglue")
-    map_ned_frame = rospy.get_param("~map_ned_frame", "map_ned")
+    map_ned_frame = rospy.get_param("~map_ned_frame", "world_ned")
 
     # Register templates, template dimensions from json file
     templates_dir = os.path.abspath(
@@ -935,6 +957,14 @@ if __name__ == "__main__":
         elif matcher == "keyaffhard_flann":
             image_match_producer = get_keypoints_match_producer(
                 "keyaffhard", "flann", {"debug": True}, {"debug": True}
+            )
+        elif matcher == "disk_lightglue": 
+            image_match_producer = get_keypoints_match_producer(
+                "disk", "lightglue", {"debug": True}, {"debug": True, "weights": "disk"}
+            )
+        elif matcher == "dalf_flann": 
+            image_match_producer = get_keypoints_match_producer(
+                "dalf", "flann", {"debug": True}, {"debug": True}
             )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
