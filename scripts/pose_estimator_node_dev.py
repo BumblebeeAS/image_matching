@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import sys, traceback
-from dataclasses import dataclass
+import copy
+import glob
 import json
 import logging
 import os
 import threading
+import traceback
 from dataclasses import dataclass
 from operator import attrgetter
 from pathlib import Path
@@ -467,7 +468,7 @@ class BasicPoseEstimator:
                         # print("Saving recent timestamp: ", msg.header.stamp)
                     # else: 
                         # print("Received old timestamp! ", msg.header.stamp)
-                except Exception as e:
+                except Exception:
                     print("ee")
                     print(traceback.format_exc())
                 finally:
