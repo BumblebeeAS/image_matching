@@ -195,6 +195,7 @@ class PoseEstimator:
         if matcher not in self.keypoints_match_producers.keys():
             raise Exception(f"Matcher {matcher} not registered.")
         keypoints_match_producer = self.keypoints_match_producers[matcher]
+        print("Processing Image!")
         keypoints1, keypoints2 = keypoints_match_producer.process_image(
             img,
             template,
@@ -205,7 +206,9 @@ class PoseEstimator:
         )
 
         if keypoints1 is None or keypoints2 is None: 
+            print("No keypoints generated!")
             return None, None
+        print(len(keypoints1))
 
         R, t, inliers = self.compute_pose_from_keypoints(
             template,

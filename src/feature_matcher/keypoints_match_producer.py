@@ -260,6 +260,7 @@ class KeypointsMatchProducer(ABC):
         try:
             kp1, kp2 = self.compute_matches(num_keypoints, template=template)
         except Exception as e:
+            print(e)
             if logger:
                 logger.error(e)
             return None, None

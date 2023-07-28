@@ -18,7 +18,7 @@ class FlannKeypointMatcher(KeypointMatcher):
         self.num_matches = num_matches
 
     def __call__(
-        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
+        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 500
     ) -> Tuple[Keypoints, Keypoints]:
         """
         Finds matches between keypoints1 and keypoints2 using Brute Force Matcher.
