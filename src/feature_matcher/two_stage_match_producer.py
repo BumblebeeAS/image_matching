@@ -60,7 +60,7 @@ class TwoStageMatchProducer(KeypointsMatchProducer):
     ) -> Tuple[Keypoints, Keypoints]:
         img0, img1 = self.get_images(template)
         assert img0.results is not None, "Template image not registered"
-        assert img1.results is not None, "Template image not registered"
+        assert img1.results is not None, "Camera image not registered"
         if img0 is None or img1 is None:
             raise Exception("Images not registered")
 

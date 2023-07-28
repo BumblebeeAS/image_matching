@@ -22,13 +22,13 @@ def get_norm_type(norm_str: str) -> int:
 class BFKeypointMatcher(KeypointMatcher):
     def __init__(self, config={"cross_check": True, "norm_type": "l2"}):
         self.matcher = cv2.BFMatcher(
-            crossCheck=config.get("cross_check", False),
+            crossCheck=config.get("cross_check", True),
             normType=get_norm_type(config.get("norm_type", "l2")),
         )
         self.lock  = threading.Lock()
 
     def __call__(
-        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
+        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 500
     ) -> Tuple[Keypoints, Keypoints]:
         """
         Finds matches between keypoints1 and keypoints2 using Brute Force Matcher.
@@ -44,7 +44,15 @@ class BFKeypointMatcher(KeypointMatcher):
             matches = self.matcher.match(keypoints1.descriptors, keypoints2.descriptors)
         selected_matches = []
         matches1, matches2 = [], []
-        for match in sorted(matches, key=lambda x: x.distance):
+
+        # -- Filter matches using the Lowe's ratio test
+        ratio_thresh = 0.75
+        good_matches = []
+        for m, n in matches:
+            if m.distance < ratio_thresh * n.distance:
+                good_matches.append(m)
+
+        for match in sorted(good_matches, key=lambda x: x.distance):
             if len(selected_matches) >= num_keypoints:
                 break
             i1, i2 = match.queryIdx, match.trainIdx

@@ -446,14 +446,15 @@ class BasicPoseEstimator:
                 return False
 
     def register_camera(self, camera_topic: str, camera: PinholeCamera):
-        self.subscribers[camera_topic] = rospy.Subscriber(
-            camera_topic,
-            CompressedImage,
-            self.msg_callback(camera.frame_id),
-            queue_size=1,
-        )
-        self.pose_estimator.register_camera(camera)
-        self.topics[camera.frame_id] = camera_topic
+        if camera_topic not in self.subscribers:
+            self.subscribers[camera_topic] = rospy.Subscriber(
+                camera_topic,
+                CompressedImage,
+                self.msg_callback(camera.frame_id),
+                queue_size=1,
+            )
+            self.pose_estimator.register_camera(camera)
+            self.topics[camera.frame_id] = camera_topic
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
@@ -540,9 +541,11 @@ class BasicPoseEstimator:
             if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
                 rospy.logerr_throttle_identical(1.0, f"Camera {camera_frame_id} image not received, trying to restart")
                 try:
+                    print("Registering Camera...")
                     self.register_camera(self.topics[camera_frame_id], self.pose_estimator.cameras[camera_frame_id])
+                    print("Camera registered!")
                 except Exception as e:
-                    print(e)
+                    print(traceback.format_exc())
                 continue
             if template_name not in self.templates:
                 rospy.logerr_throttle_identical(
@@ -565,6 +568,7 @@ class BasicPoseEstimator:
                 f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
             )
             template = self.templates[template_name]
+            print("Computing pose...")
             rot, trans = self.pose_estimator.compute_pose(
                 images[camera_frame_id],
                 template_name,
@@ -577,6 +581,9 @@ class BasicPoseEstimator:
                 max_reprojection_error=template.reprojection_error_threshold,
                 min_matches=template.min_matches,
             )
+            print("Pose computed")
+            print("Rot: ", rot)
+            print("Trans: ", trans)
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
                 yaw = np.rad2deg(yaw)
@@ -967,12 +974,17 @@ if __name__ == "__main__":
             image_match_producer = get_keypoints_match_producer(
                 "dalf", "flann", {"debug": True}, {"debug": True}
             )
+        elif matcher == "dalf_bf": 
+            image_match_producer = get_keypoints_match_producer(
+                "dalf", "bf", {"debug": True}, {"debug": True}
+            )
         else:
             raise NotImplementedError(f"Matcher {matcher} unimplemented!")
         return image_match_producer
 
     matchers = {}
     matchers["sift_flann"] = get_matcher("sift_flann")
+    # matchers["dalf_bf"] = get_matcher("dalf_bf")
     # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
     # matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
     if matcher not in matchers:
