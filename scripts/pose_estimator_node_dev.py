@@ -986,7 +986,7 @@ if __name__ == "__main__":
     matchers["sift_flann"] = get_matcher("sift_flann")
     # matchers["dalf_bf"] = get_matcher("dalf_bf")
     # matchers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
-    # matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
+    matchers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
     if matcher not in matchers:
         matchers[matcher] = get_matcher(matcher)
     pose_estimator = BasicPoseEstimator(
