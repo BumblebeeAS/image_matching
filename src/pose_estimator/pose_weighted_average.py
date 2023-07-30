@@ -67,6 +67,7 @@ def get_kmeans_center(poses, n_clusters=2):
     centroids,_ = kmeans(X,n_clusters)
     idx,_ = vq(X,centroids)
     best_cluster = np.argmax(np.bincount(idx))
+    # second_best = np.argsort(np.max(x, axis=0))[-2]
     return get_weighted_average(poses[idx==best_cluster])
 
 
