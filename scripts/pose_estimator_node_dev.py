@@ -217,14 +217,14 @@ class BasicPoseEstimator:
         self.custom_stabilized_orientation_transform: Dict[
             str, Callable[[np.ndarray], np.ndarray]
         ] = {
-            "buoy1": transform_buoy_stabilized,
-            "buoy2": transform_buoy_stabilized,
-            "buoy1-2": transform_buoy_stabilized,
-            "buoy1-3": transform_buoy_stabilized,
-            "buoy1-4": transform_buoy_stabilized,
-            "buoy2-2": transform_buoy_stabilized,
-            "buoy2-3": transform_buoy_stabilized,
-            "buoy2-4": transform_buoy_stabilized,
+            # "buoy1": transform_buoy_stabilized,
+            # "buoy2": transform_buoy_stabilized,
+            # "buoy1-2": transform_buoy_stabilized,
+            # "buoy1-3": transform_buoy_stabilized,
+            # "buoy1-4": transform_buoy_stabilized,
+            # "buoy2-2": transform_buoy_stabilized,
+            # "buoy2-3": transform_buoy_stabilized,
+            # "buoy2-4": transform_buoy_stabilized,
         }
 
     def teardown(self):
