@@ -5,7 +5,14 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="koh.benjamin@u.nus.edu">b3nguin</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
+
+  <exec_depend>python-transforms3d-pip</exec_depend>
+
+  <depend>bb_msgs</depend>
+  <depend>image_transport</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
