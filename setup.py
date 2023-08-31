@@ -1,8 +1,25 @@
-from distutils.core import setup
+from setuptools import setup
+
+package_name = 'image_matching'
 
 setup(
-    name="image_matching",
-    version="0.0.0",
-    packages=["feature_matcher", "pose_estimator"],
-    package_dir={"": "src"},
+    name=package_name,
+    version='0.0.0',
+    packages=[package_name],
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='b3nguin',
+    maintainer_email='koh.benjamin@u.nus.edu',
+    description='TODO: Package description',
+    license='TODO: License declaration',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+        ],
+    },
 )

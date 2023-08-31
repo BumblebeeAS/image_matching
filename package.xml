@@ -1,22 +1,18 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>image_matching</name>
   <version>0.0.0</version>
-  <description>The image_matching package</description>
+  <description>TODO: Package description</description>
+  <maintainer email="koh.benjamin@u.nus.edu">b3nguin</maintainer>
+  <license>TODO: License declaration</license>
 
-  <maintainer email="amadeus.winarto@u.nus.edu">Amadeus Winarto</maintainer>
-  <license>MIT</license>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
-  <buildtool_depend>catkin</buildtool_depend>
-
-  <depend>roscpp</depend>
-  <depend>rospy</depend>
-
-  <depend>bb_msgs</depend>
-
-  <depend>image_transport</depend>
-
-  <depend>message_generation</depend>
-  <depend>message_runtime</depend>
-  <exec_depend>python-transforms3d-pip</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>

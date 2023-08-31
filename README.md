@@ -1,3 +1,5 @@
+## Migration in progress for Humble Branch
+
 # SuperGlue ROS
 ROS wrapper for SuperGlue and SuperPoint models
 
@@ -7,7 +9,7 @@ ROS wrapper for SuperGlue and SuperPoint models
 You can find **the utilization of this module** in [this](https://github.com/KopanevPavel/runbot_custom_localization) repository in the frontend part of the visual-inertial SLAM system
 
 ## System
- - ROS Melodic (with python3 support)
+ - ROS2 Humble (with python3 support)
  - Pytorch
  - Numpy
  - OpenCV
