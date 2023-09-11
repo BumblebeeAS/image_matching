@@ -1,0 +1,74 @@
+{
+    "_Tommy Gun.jpeg": [0.6096, 1.2192],
+    "_Bootlegger.jpeg": [0.6096, 1.2192],
+    "_Badge.jpeg": [0.6096, 1.2192],
+    "_G-Man.jpeg": [0.6096, 1.2192],
+    "lid.jpg": [0.2032, 0.3556],
+    "_brown.jpeg": [0.2032, 0.3556],
+    "_chevron_blue.jpeg": [0.1524, 0.2286],
+    "_chevron.jpeg": [0.1016, 0.1524],
+    "_chevron_red.png": [0.1524, 0.2286],
+    "_2023_torpedo1.png": [1.2192, 1.2192],
+    "_2023_torpedo2.png": [1.2192, 1.2192],
+    "2023_torpedo_big.png": {
+        "object_name": "2023_torpedo_big",
+        "dimensions": [1.19396645833, 0.63297157986],
+        "regions": {
+            "hole": [0.3, 0, 0.7, 0.8]
+        }
+    },
+    "2023_torpedo_small.png": {
+        "object_name": "2023_torpedo_small",
+        "dimensions": [1.19396645833, 0.63297157986],
+        "regions": {
+            "hole": [0.3, 0, 0.7, 0.8]
+        }
+    },
+    "torpedo_seg.png": [1.2192, 1.2192],
+    "buoy_seg.png": [1.2192, 1.2192],
+    "_pole_seg.png": [2, 0.0762],
+    "gate_seg.png": [3, 1.5],
+    "dhd_seg.png": [2, 2],
+    "DHD.jpg": [1.2192, 1.2192],
+    "_DHD_rotated.jpg": [1.2192, 1.2192],
+    "abydos0.png": [0.1524, 0.3048],
+    "earth0.png": [0.1524, 0.3048],
+    "_abydos1.png": [0.6096, 0.6096],
+    "_abydos2.png": [0.6096, 0.6096],
+    "_earth1.png": [0.6096, 0.6096],
+    "_earth2.png": [0.6096, 0.6096],
+    "buoy1.png": [1.2192, 1.2192],
+    "_buoy1-2.png": [1.2192, 1.2192],
+    "_buoy1-3.png": [1.2192, 1.2192],
+    "_buoy1-4.png": [1.2192, 1.2192],
+    "buoy2.png": [1.2192, 1.2192],
+    "_buoy3.png": [1.2192, 1.2192],
+    "_abydos3.png": [0.4, 0.4],
+    "_abydos4.png": [0.4, 0.4],
+    "_abydos5.png": [0.4, 0.4],
+    "_abydos6.png": [0.4, 0.4],
+    "_earth3.png": [0.4, 0.4],
+    "_earth4.png": [0.4, 0.4],
+    "_earth5.png": [0.4, 0.4],
+    "_earth6.png": [0.4, 0.4],
+    "bin_earth.png": [0.3048, 0.6096],
+    "bin_earth_1_part-0.png": [0.3048, 0.2032],
+    "bin_earth_1_part-1.png": [0.3048, 0.2032],
+    "bin_earth_1_part-2.png": [0.3048, 0.2032],
+    "bin_earth_2_part-2.png": [0.3048, 0.2032],
+    "bin_earth_2_part-0.png": [0.3048, 0.2032],
+    "bin_earth_2_part-1.png": [0.3048, 0.2032],
+    "bin_earth_2.png": [0.3048, 0.6096],
+    "bin_abydos.png": {
+        "object_name": "bin_abydos",
+        "dimensions": [0.3048, 0.6096],
+        "regions": {
+            "1_part-0": [0.0, 0.0, 1.0, 0.3333],
+            "1_part-1": [0.0, 0.0, 1.0, 0.6666],
+            "1_part-2": [0.0, 0.0, 1.0, 1.0000],
+            "2_part-0": [0.0, 0.0, 1.0, 0.3333],
+            "2_part-1": [0.0, 0.0, 1.0, 0.6666],
+            "2_part-2": [0.0, 0.0, 1.0, 1.0000]
+        }
+    }
+}
