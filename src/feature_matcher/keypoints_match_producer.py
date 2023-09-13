@@ -7,9 +7,9 @@ from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 import cv2
 import numpy as np
 
-from src.feature_matcher.keypoints import Keypoints
-from src.feature_matcher.tools import create_show_image, plot_matches, white_balance
-from src.utils.logging import Logger
+from feature_matcher.keypoints import Keypoints
+from feature_matcher.tools import create_show_image, plot_matches, white_balance
+from utils.logging import Logger
 
 T = TypeVar("T")
 
@@ -322,89 +322,92 @@ def get_keypoints_match_producer(
     # Feature extractors:
 
     def get_superpoint(config):
-        from src.feature_matcher.keypoint_producer import SuperPointKeypointProducer
+        from feature_matcher.keypoint_producer import SuperPointKeypointProducer
 
         return SuperPointKeypointProducer(config)
     
     def get_disk(config): 
-        from src.feature_matcher.keypoint_producer import DISKKeypointProducer
+        from feature_matcher.keypoint_producer import DISKKeypointProducer
 
         return DISKKeypointProducer(config)
 
     def get_orb(config):
-        from src.feature_matcher.keypoint_producer import OrbKeypointProducer
+        from feature_matcher.keypoint_producer import OrbKeypointProducer
 
         return OrbKeypointProducer(config)
 
     def get_sift(config):
-        from src.feature_matcher.keypoint_producer import SiftKeypointProducer
+        from feature_matcher.keypoint_producer import SiftKeypointProducer
 
         return SiftKeypointProducer(config)
 
     def get_fast(config):
-        from src.feature_matcher.keypoint_producer import FastKeypointProducer
+        from feature_matcher.keypoint_producer import FastKeypointProducer
 
         return FastKeypointProducer(config)
 
     def get_alike(config):
-        from src.feature_matcher.keypoint_producer import AlikeKeypointProducer
+        from feature_matcher.keypoint_producer import AlikeKeypointProducer
 
         return AlikeKeypointProducer(config)
     
     def get_dalf(config):
-        from src.feature_matcher.keypoint_producer import DALFKeypointProducer
+        from feature_matcher.keypoint_producer import DALFKeypointProducer
 
         return DALFKeypointProducer(config)
 
     # Feature matchers:
 
     def get_bf(config):
-        from src.feature_matcher.keypoint_matcher.bf import BFKeypointMatcher
+        from feature_matcher.keypoint_matcher.bf import BFKeypointMatcher
 
         return BFKeypointMatcher(config)
 
     def get_flann(config):
-        from src.feature_matcher.keypoint_matcher.flann import FlannKeypointMatcher
+        from feature_matcher.keypoint_matcher.flann import FlannKeypointMatcher
 
         return FlannKeypointMatcher(config)
 
     def get_superglue(config):
-        from src.feature_matcher.keypoint_matcher.superglue import SuperglueKeypointMatcher
+        from feature_matcher.keypoint_matcher.superglue import SuperglueKeypointMatcher
 
         return SuperglueKeypointMatcher(config)
 
     def get_lightglue(config):
-        from src.feature_matcher.keypoint_matcher.lightglue import LightglueKeypointMatcher
+        from feature_matcher.keypoint_matcher.lightglue import LightglueKeypointMatcher
 
         return LightglueKeypointMatcher(config)
 
     # extractor + matchers:
 
     def get_loftr(config):
-        from src.feature_matcher.loftr_matcher import LoFTRMatchProducer
+        from feature_matcher.loftr_matcher import LoFTRMatchProducer
 
         return LoFTRMatchProducer(config)
 
     def get_coarse_loftr(config):
-        from src.feature_matcher.kornia_loftr_matcher import Kornia_LoFTRMatchProducer
+        try:
+            from feature_matcher.kornia_loftr_matcher import Kornia_LoFTRMatchProducer
 
-        # return Coarse_LoFTRMatchProducer(config)
-        return Kornia_LoFTRMatchProducer(config)
+            # return Coarse_LoFTRMatchProducer(config)
+            return Kornia_LoFTRMatchProducer(config)
+        except:
+            print("kornia not installed")
 
     def get_loftr_ts(config):
-        from src.feature_matcher.loftr_torchscript_matcher import (
+        from feature_matcher.loftr_torchscript_matcher import (
             LoFTRTorchscriptMatchProducer,
         )
 
         return LoFTRTorchscriptMatchProducer(config)
 
     def get_dkm(config):
-        from src.feature_matcher.dkm_matcher import DKMv3MatchProducer
+        from feature_matcher.dkm_matcher import DKMv3MatchProducer
 
         return DKMv3MatchProducer(config)
 
     def get_keyaffhard(config):
-        from src.feature_matcher.keypoint_producer import KeyAffHardKeypointProducer
+        from feature_matcher.keypoint_producer import KeyAffHardKeypointProducer
 
         return KeyAffHardKeypointProducer(config)
 
@@ -440,7 +443,7 @@ def get_keypoints_match_producer(
             matcher = matchers[matcher](matcher_config)
 
     if extractor is not None:
-        from src.feature_matcher.two_stage_match_producer import TwoStageMatchProducer
+        from feature_matcher.two_stage_match_producer import TwoStageMatchProducer
 
         return TwoStageMatchProducer(extractor, matcher)
     else:

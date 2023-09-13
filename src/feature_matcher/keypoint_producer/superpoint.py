@@ -2,6 +2,7 @@ import os
 import sys
 import threading
 from pathlib import Path
+from ament_index_python import get_package_share_directory
 
 SuperGlue_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[1] / "models/SuperGluePretrainedNetwork"
@@ -25,7 +26,9 @@ class SuperPointKeypointProducer(KeypointProducer):
         "keypoint_threshold": 0.005,
         "max_keypoints": -1,
         "remove_borders": 4,
-        "path": os.path.join(SuperGlue_dir, "models", "weights", "superpoint_v1.pth"),
+        "path": os.path.join(get_package_share_directory("image_matching"),
+                             "models", "SuperGluePretrainedNetwork",
+                             "models", "weights", "superpoint_v1.pth"),
         "cuda": True,
     }
 

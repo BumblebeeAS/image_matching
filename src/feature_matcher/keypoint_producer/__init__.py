@@ -1,29 +1,29 @@
-from .fast import FastKeypointProducer
-from .orb import OrbKeypointProducer
+from feature_matcher.keypoint_producer.fast import FastKeypointProducer
+from feature_matcher.keypoint_producer.orb import OrbKeypointProducer
 
 try:
-    from .sift import SiftKeypointProducer
+    from feature_matcher.keypoint_producer.sift import SiftKeypointProducer
 except ImportError as e:
     print(e)
 try:
-    from .superpoint import SuperPointKeypointProducer
+    from feature_matcher.keypoint_producer.superpoint import SuperPointKeypointProducer
 except ImportError as e:
     print(e)
 try:
-    from .alike import AlikeKeypointProducer
+    from feature_matcher.keypoint_producer.alike import AlikeKeypointProducer
 except ImportError as e:
     print(e)
 try:
-    from .KeyAffHard import KeyAffHardKeypointProducer
-except ImportError as e:
-    print(e)
-
-try:
-    from .disk import DISKKeypointProducer
+    from feature_matcher.keypoint_producer.KeyAffHard import KeyAffHardKeypointProducer
 except ImportError as e:
     print(e)
 
 try:
-    from .dalf import DALFKeypointProducer
+    from feature_matcher.keypoint_producer.disk import DISKKeypointProducer
+except ImportError as e:
+    print(e)
+
+try:
+    from feature_matcher.keypoint_producer.dalf import DALFKeypointProducer
 except ImportError as e:
     print(e)

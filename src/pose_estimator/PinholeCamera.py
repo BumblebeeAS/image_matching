@@ -21,21 +21,21 @@ class PinholeCamera(object):
                 camera_info.header.frame_id,
                 camera_info.width,
                 camera_info.height,
-                camera_info.P[0],
-                camera_info.P[5],
-                camera_info.P[2],
-                camera_info.P[6],
+                camera_info.p[0],
+                camera_info.p[5],
+                camera_info.p[2],
+                camera_info.p[6],
             )
         else:
             return PinholeCamera(
                 camera_info.header.frame_id,
                 camera_info.width,
                 camera_info.height,
-                camera_info.K[0],
-                camera_info.K[4],
-                camera_info.K[2],
-                camera_info.K[5],
-                *camera_info.D
+                camera_info.k[0],
+                camera_info.k[4],
+                camera_info.k[2],
+                camera_info.k[5],
+                *camera_info.d
             )
 
     def camera_matrix(self):
