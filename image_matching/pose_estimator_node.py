@@ -294,7 +294,7 @@ class BasicPoseEstimator(Node):
             "detected_objects_topic", None).get_parameter_value().string_value
 
         matcher = self.get_parameter_or(
-            "matcher", "superpoint_lightglue").get_parameter_value().string_value
+            "matcher", "sift_flann").get_parameter_value().string_value
         map_ned_frame = self.get_parameter_or(
             "map_ned_frame", "map_ned").get_parameter_value().string_value
 
@@ -308,7 +308,7 @@ class BasicPoseEstimator(Node):
         image_match_producers["sift_flann"] = get_matcher("sift_flann")
         # image_match_producers["dalf_bf"] = get_matcher("dalf_bf")
         # image_match_producers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
-        image_match_producers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
+        # image_match_producers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
         if matcher not in image_match_producers:
             image_match_producers[matcher] = get_matcher(matcher)
 
@@ -652,7 +652,7 @@ class BasicPoseEstimator(Node):
             pd.DataFrame(columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
             None,
             1,  # min_buffer_size
-            20,  # max_buffer_size
+            30,  # max_buffer_size
             10,  # max_history,
         )
 
@@ -679,7 +679,7 @@ class BasicPoseEstimator(Node):
             res.is_valid = False
             return res
         time_since_last = (
-            self.get_clock().now().secs - template_object.computed_pose.header.stamp.secs
+            self.get_clock().now().seconds_nanoseconds()[0] - template_object.computed_pose.header.stamp.sec
         )
         if (
             template_object.max_history > 0
@@ -1033,7 +1033,7 @@ class BasicPoseEstimator(Node):
         else:
             res.error_message="Failed to compute pose!"
             return res
-        res.error_message=True
+        res.error_message=""
         return res
 
     def update_raw_pose(self, rot, trans, frame_id, template: Template, stamp):
