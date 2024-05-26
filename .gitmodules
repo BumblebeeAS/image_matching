@@ -25,3 +25,6 @@
 [submodule "src/feature_matcher/models/SuperGluePretrainedNetwork"]
 	path = src/feature_matcher/models/SuperGluePretrainedNetwork
 	url = https://github.com/BumblebeeAS/SuperGluePretrainedNetwork.git
+[submodule "src/feature_matcher/models/accelerated_features"]
+    path = src/feature_matcher/models/accelerated_features
+    url = git@github.com:verlab/accelerated_features.git
