@@ -5,7 +5,7 @@ from pathlib import Path
 from ament_index_python import get_package_share_directory
 
 XFEAT_DIR = os.path.abspath(
-    Path(os.path.realpath(__file__).parents[1] / "models/accelerated_features/modules")
+    Path(os.path.realpath(__file__)).parents[0] / "models/accelerated_features/modules"
 )
 
 sys.path.insert(0, XFEAT_DIR)
@@ -89,7 +89,7 @@ class XFeatKeypointProducer(KeypointProducer):
         
         with self.lock:
             # XFeat handles additional preprocessing, such as conversion into tensor
-            pred = self.model.detectAndCompute(preprocessed)
+            pred = self.model.detectAndCompute(preprocessed)[0]
             # pred contains keypoints, scores and descriptors
         return Keypoints(
             image.shape[:2], pred["keypoints"], pred["descriptors"], pred["scores"]
