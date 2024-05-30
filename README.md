@@ -54,3 +54,7 @@ rosrun SuperGlue_ROS matcher_node
 Credits:
 https://github.com/Shiaoming/Python-VO
 
+
+
+To add __init__.py into acclerated_features
+Change modulels.models and modules.interpolator in modules/xfeat.py to .models and .interpolator

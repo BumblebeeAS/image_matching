@@ -31,7 +31,9 @@ setup(
         (f"share/{package_name}/models/SuperGluePretrainedNetwork/models/weights",
             ["src/feature_matcher/models/SuperGluePretrainedNetwork/models/weights/superpoint_v1.pth"]),
         (f"share/{package_name}/templates",
-            glob('templates/*.json') + glob('templates/*.png') + glob('templates/*.jpg'))
+            glob('templates/*.json') + glob('templates/*.png') + glob('templates/*.jpg') + glob('templates/*.jpeg')),
+        (f"share/{package_name}/models/accelerated_features/weights/", ["src/feature_matcher/models/accelerated_features/weights/xfeat.pt"]),
+        (f"share/{package_name}/models/accelerated_features/modules", glob("src/feature_matcher/models/accelerated_features/modules/*.py"))
     ],
     install_requires=['setuptools',],
     zip_safe=True,
@@ -44,6 +46,7 @@ setup(
         'console_scripts': [
             'detector = image_matching.detector:main',
             'pose_estimator = image_matching.pose_estimator_node:main',
+            'test_xfeat = image_matching.test_xfeat:main',
         ],
     },
 )

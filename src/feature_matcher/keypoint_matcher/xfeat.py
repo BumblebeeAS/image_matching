@@ -10,6 +10,8 @@ XFEAT_DIR = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0] / "models/accelerated_features/modules"
 )
 
+import torch
+
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.two_stage_match_producer import KeypointMatcher
@@ -41,12 +43,12 @@ class XFeatKeypointMatcher(KeypointMatcher):
 
         self.model = XFeat(self.config["weights"], self.config["top_k"])
 
-        self.lock = threading.lock()
+        self.lock = threading.Lock()
     
     # not sure if preprocessing is necessary, ideally keypoints also generated from xfeat
     def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints):
         # matching occurs on descriptors
-        idxs0, idxs1 = self.model.match(keypoints1.descriptors, keypoints2.descriptors)
+        idxs0, idxs1 = self.model.match(torch.tensor(keypoints1.descriptors), torch.tensor(keypoints2.descriptors), min_cossim=-1)
         
         # does not give confidence of match?
         # select relevant keypoints

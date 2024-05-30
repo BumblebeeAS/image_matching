@@ -5,7 +5,7 @@ from pathlib import Path
 from ament_index_python import get_package_share_directory
 
 XFEAT_DIR = os.path.abspath(
-    Path(os.path.realpath(__file__)).parents[0] / "models/accelerated_features/modules"
+    Path(os.path.realpath(__file__)).parents[0] / "models/accelerated_features"
 )
 
 sys.path.insert(0, XFEAT_DIR)
@@ -15,9 +15,10 @@ import logging
 import cv2
 import numpy as np
 import torch
-from xfeat import XFeat
+from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.keypoints_match_producer import Keypoints
-from feature_matcher.two_stage_matche_producer import KeypointProducer
+from feature_matcher.two_stage_match_producer import KeypointProducer
+from feature_matcher.tools import image2tensor
 
 class XFeatKeypointProducer(KeypointProducer):
     default_config = {
@@ -53,7 +54,6 @@ class XFeatKeypointProducer(KeypointProducer):
 
         self.config.pop("cuda")
         self.config.pop("device")
-        self.config.pop("debug")
 
         self.model = XFeat(**self.config)
         self.lock = threading.Lock()
@@ -70,7 +70,7 @@ class XFeatKeypointProducer(KeypointProducer):
             pass
 
         logging.debug("Detecting keypoints with XFeat")
-        return image
+        return image2tensor(image, self.device)
     
     def __call__(self, image: np.ndarray) -> Keypoints:
         """
@@ -84,9 +84,8 @@ class XFeatKeypointProducer(KeypointProducer):
 
         Consider adding option to use detectAndComputeDense
         """
-
         preprocessed = self.preprocess(image)
-        
+        print(preprocessed.shape)
         with self.lock:
             # XFeat handles additional preprocessing, such as conversion into tensor
             pred = self.model.detectAndCompute(preprocessed)[0]
