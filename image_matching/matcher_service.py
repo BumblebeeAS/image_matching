@@ -3,35 +3,33 @@ import json
 import os
 from typing import Callable, Dict, List, Tuple, Union
 
-import cv2
-import numpy as np
-import rospy
 from bb_msgs.msg import DetectedObjects
+from bb_msgs.msg import Keypoint
+from bb_msgs.msg import KeypointsDict
+from bb_msgs.srv import ClearBuffer
+from bb_msgs.srv import ClearBufferRequest
+from bb_msgs.srv import ClearBufferResponse
+from bb_msgs.srv import MatchImages
+from bb_msgs.srv import MatchImagesRequest
+from bb_msgs.srv import MatchImagesResponse
+from bb_msgs.srv import MatchToTemplate
+from bb_msgs.srv import MatchToTemplateRequest
+from bb_msgs.srv import MatchToTemplateResponse
+from bb_msgs.srv import RegisterImage
+from bb_msgs.srv import RegisterImageRequest
+from bb_msgs.srv import RegisterImageResponse
+import cv2
 from cv_bridge import CvBridge
-from bb_msgs.msg import Keypoint, KeypointsDict
-from bb_msgs.srv import (
-    ClearBuffer,
-    ClearBufferRequest,
-    ClearBufferResponse,
-    MatchImages,
-    MatchImagesRequest,
-    MatchImagesResponse,
-    MatchToTemplate,
-    MatchToTemplateRequest,
-    MatchToTemplateResponse,
-    RegisterImage,
-    RegisterImageRequest,
-    RegisterImageResponse,
-)
-from rospkg import RosPack
-from sensor_msgs.msg import CompressedImage
-
 from feature_matcher.keypoints import Keypoints
+from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 from feature_matcher.keypoints_match_producer import (
-    KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
 from feature_matcher.tools import create_save_image
+import numpy as np
+from rospkg import RosPack
+import rospy
+from sensor_msgs.msg import CompressedImage
 
 
 class MatcherNode:
@@ -57,7 +55,10 @@ class MatcherNode:
 
         self.image_match_producer: KeypointsMatchProducer = (
             get_keypoints_match_producer(
-                detector_name, matcher_name, self.detector_config, self.matcher_config
+                detector_name,
+                matcher_name,
+                self.detector_config,
+                self.matcher_config,
             )
         )  # 0.1275215585s
 
@@ -69,7 +70,9 @@ class MatcherNode:
             if not os.path.isdir(self.debug_path):
                 os.mkdir(self.debug_path)
             self.image_match_producer.visualize_callbacks.append(
-                create_save_image(os.path.join(self.debug_path, "debug_matches_py.jpg"))
+                create_save_image(
+                    os.path.join(self.debug_path, "debug_matches_py.jpg")
+                )
             )
 
         template_path = os.path.join(self.path, "templates")
@@ -92,7 +95,9 @@ class MatcherNode:
         try:
             # Add the services here
             self.services.append(
-                rospy.Service("registerImage", RegisterImage, self.register_img)
+                rospy.Service(
+                    "registerImage", RegisterImage, self.register_img
+                )
             )
         except rospy.service.ServiceException:
             pass
@@ -139,7 +144,9 @@ class MatcherNode:
             kp = Keypoint()
             kp.coord = k
             response.keypoints_dict.cur_keypoints.append(kp)
-        response.keypoints_dict.match_score = results["match_score"]  # List of floats
+        response.keypoints_dict.match_score = results[
+            "match_score"
+        ]  # List of floats
         return response
 
     def register_img(self, req: RegisterImageRequest) -> RegisterImageResponse:
@@ -155,7 +162,9 @@ class MatcherNode:
                     )
                 except rospy.ROSException:
                     continue
-                if any([x.name == object_name for x in detected_objects.detected]):
+                if any(
+                    [x.name == object_name for x in detected_objects.detected]
+                ):
                     detected_object = sorted(
                         detected_objects.detected,
                         key=lambda x: x.extra[0],
@@ -179,12 +188,16 @@ class MatcherNode:
                 y - PADDING : y + h + PADDING, x - PADDING : x + w + PADDING, :
             ]
         cv2.imwrite(
-            os.path.join(self.debug_path, f"current_{len(self.buffer) % 2}.jpg"),
+            os.path.join(
+                self.debug_path, f"current_{len(self.buffer) % 2}.jpg"
+            ),
             cv2_img,
         )
         return self.image_match_producer.add_image(cv2_img)
 
-    def clear_buffer(self, _: ClearBufferRequest = None) -> ClearBufferResponse:
+    def clear_buffer(
+        self, _: ClearBufferRequest = None
+    ) -> ClearBufferResponse:
         return self.image_match_producer.clear_buffer()
 
     def match_images(self, request: MatchImagesRequest) -> MatchImagesResponse:
@@ -220,7 +233,9 @@ class MatcherNode:
             num_keypoints=num_keypoints, template=template_name
         )
 
-        return self._to_correct_format(results, lambda: MatchToTemplateResponse())  # type: ignore
+        return self._to_correct_format(
+            results, lambda: MatchToTemplateResponse()
+        )  # type: ignore
 
     def warmup(self):
         debug_state = self.debug

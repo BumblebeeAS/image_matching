@@ -22,7 +22,7 @@ jobs:
         with:
           token: ${{ secrets.CI_TOKEN }}
           path: src/image_matching
-      
+
       - name: Check out bb_msgs
         uses: actions/checkout@v3
         with:
@@ -34,7 +34,7 @@ jobs:
         run: source /opt/ros/noetic/setup.bash && rosdep update && rosdep install --from-paths src -i -r -y
 
       - name: Build
-        run: source /opt/ros/noetic/setup.bash && catkin build --no-status 
-      
+        run: source /opt/ros/noetic/setup.bash && catkin build --no-status
+
       - name: Run tests
         run: source devel/setup.bash && ./src/image_matching/tests/test_matcher_service.py

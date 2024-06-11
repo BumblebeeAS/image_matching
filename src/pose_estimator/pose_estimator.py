@@ -2,15 +2,15 @@ import logging
 from typing import Callable, Dict, List, Tuple
 
 import cv2
-import numpy as np
-
+from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 from feature_matcher.keypoints_match_producer import (
-    KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
-from feature_matcher.tools import create_show_image, plot_matches
+from feature_matcher.tools import create_show_image
+from feature_matcher.tools import plot_matches
+import numpy as np
+
 from pose_estimator.PinholeCamera import PinholeCamera
-from transforms3d.euler import mat2euler
 
 
 def homography_based_filter(
@@ -24,8 +24,12 @@ def homography_based_filter(
         print("NOT ENOUGH POINTS -> Object not in view? ")
         return None, None, None, None
 
-    kp1_undistort = cv2.undistortPoints(kp1.reshape(-1, 1, 2), np.eye(3), dist_coeffs)
-    kp2_undistort = cv2.undistortPoints(kp2.reshape(-1, 1, 2), np.eye(3), dist_coeffs)
+    kp1_undistort = cv2.undistortPoints(
+        kp1.reshape(-1, 1, 2), np.eye(3), dist_coeffs
+    )
+    kp2_undistort = cv2.undistortPoints(
+        kp2.reshape(-1, 1, 2), np.eye(3), dist_coeffs
+    )
 
     H, mask = cv2.findHomography(kp1_undistort, kp2_undistort, cv2.RANSAC)
     if H is None or sum(mask) < min_inliers:
@@ -33,7 +37,7 @@ def homography_based_filter(
         return None, None, None, None
 
     _, Rs, ts, ns = cv2.decomposeHomographyMat(H, camera_matrix)
-    for (R, tvec, n) in zip(Rs, ts, ns):
+    for R, tvec, n in zip(Rs, ts, ns):
         if n[2] > 0:  # Wrong direction -> skip
             continue
         if abs(n[2] + 1) > 0.1:  # Wrong normal -> skip
@@ -55,7 +59,11 @@ def homography_based_filter(
 
 
 class PoseEstimator:
-    def __init__(self, keypoints_match_producers: Dict[str, KeypointsMatchProducer], debug=False):
+    def __init__(
+        self,
+        keypoints_match_producers: Dict[str, KeypointsMatchProducer],
+        debug=False,
+    ):
         self.keypoints_match_producers = keypoints_match_producers
         self.visualize_callbacks: List[Callable[[np.ndarray], None]] = []
         self.cameras: Dict[str, PinholeCamera] = {}
@@ -129,12 +137,19 @@ class PoseEstimator:
 
         source_dimensions, source_image_size = self.templates[template]
         object_coord = (
-            (keypoints1 - source_image_size / 2) * source_dimensions / source_image_size
+            (keypoints1 - source_image_size / 2)
+            * source_dimensions
+            / source_image_size
         )
-        object_coord = np.hstack((object_coord, np.zeros((len(object_coord), 1))))
+        object_coord = np.hstack(
+            (object_coord, np.zeros((len(object_coord), 1)))
+        )
 
         if len(object_coord) < max(min_matches, 4):
-            print("NOT ENOUGH POINTS " + str(len(object_coord)), str(max(min_matches, 4)))
+            print(
+                "NOT ENOUGH POINTS " + str(len(object_coord)),
+                str(max(min_matches, 4)),
+            )
             return None, None, None
         else:
             print("Enough points", str(len(object_coord)))
@@ -163,7 +178,10 @@ class PoseEstimator:
         if debug and R is not None and t is not None:
             img = np.zeros((camera.height, camera.width, 3), dtype=np.uint8)
             img = plot_matches(
-                np.zeros((source_image_size[1], source_image_size[0], 3), dtype=np.uint8),
+                np.zeros(
+                    (source_image_size[1], source_image_size[0], 3),
+                    dtype=np.uint8,
+                ),
                 img,
                 keypoints1,
                 keypoints2,
@@ -205,7 +223,7 @@ class PoseEstimator:
             logger=logger,
         )
 
-        if keypoints1 is None or keypoints2 is None: 
+        if keypoints1 is None or keypoints2 is None:
             print("No keypoints generated!")
             return None, None
         print(len(keypoints1))
@@ -334,18 +352,18 @@ if __name__ == "__main__":
     for i, file in enumerate(os.listdir(folder_path)):
         try:
             img = cv2.imread(f"{folder_path}/{file}")
-            l, t, w, h = [int(_) for _ in bboxes[i]]
-            l = max(0, l - PADDING)
-            t = max(0, t - PADDING)
-            r = min(img.shape[1], l + w + PADDING)
-            b = min(img.shape[0], t + h + PADDING)
+            left, top, w, h = [int(_) for _ in bboxes[i]]
+            left = max(0, left - PADDING)
+            top = max(0, top - PADDING)
+            r = min(img.shape[1], left + w + PADDING)
+            b = min(img.shape[0], top + h + PADDING)
 
             # 0.48s
             rot, trans = pose_estimator_1.compute_pose(
                 img,
                 "Bootlegger",
                 "auv4/front_cam",
-                lxtyrxby=(l, t, r, b) if CROP_IMAGES else None,
+                lxtyrxby=(left, top, r, b) if CROP_IMAGES else None,
                 debug=True,
             )
             # print(", ".join(map(str,np.rad2deg(rot.squeeze()))), ", ".join(map(str, trans.squeeze())))

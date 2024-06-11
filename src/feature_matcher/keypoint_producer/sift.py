@@ -33,7 +33,7 @@ class SiftKeypointProducer(KeypointProducer):
         keypoints = np.array([list(kp.pt) for kp in keypoints])
 
         if self.use_root and len(keypoints) > 0:
-            descriptors /= (descriptors.sum(axis=1, keepdims=True) + self.eps)
+            descriptors /= descriptors.sum(axis=1, keepdims=True) + self.eps
             descriptors = np.sqrt(descriptors)
 
         return Keypoints(

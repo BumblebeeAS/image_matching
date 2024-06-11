@@ -1,15 +1,19 @@
+from abc import ABC
+from abc import abstractmethod
 import copy
 import logging
-from abc import ABC, abstractmethod
-from threading import Lock, Thread
+from threading import Lock
+from threading import Thread
 from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
+from utils.logging import Logger
 
 from feature_matcher.keypoints import Keypoints
-from feature_matcher.tools import create_show_image, plot_matches, white_balance
-from utils.logging import Logger
+from feature_matcher.tools import create_show_image
+from feature_matcher.tools import plot_matches
+from feature_matcher.tools import white_balance
 
 T = TypeVar("T")
 
@@ -76,7 +80,9 @@ class Buffer(Generic[T]):
 class KeypointsMatchProducer(ABC):
     def __init__(self, config={}):
         self.debug = config.get("debug", False)
-        logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.INFO
+        )
 
         self.visualize_callbacks = []
         self.last_data = [None, None]
@@ -100,7 +106,9 @@ class KeypointsMatchProducer(ABC):
         self.buffer.lock.acquire()
         if isinstance(idx, str):
             relevant = (
-                [self.buffer.templates[idx]] if idx in self.buffer.templates else []
+                [self.buffer.templates[idx]]
+                if idx in self.buffer.templates
+                else []
             )
         else:
             relevant = [x for x in self.buffer.images if x.id == idx]
@@ -314,7 +322,7 @@ def get_keypoints_match_producer(
         (None, "loftr_ts"),
         (None, "dkm"),
     ]
-    if not (extractor, matcher) in valid_combinations:
+    if (extractor, matcher) not in valid_combinations:
         raise ValueError(
             f"Invalid combination of extractor and matcher: {extractor}, {matcher}"
         )
@@ -322,11 +330,13 @@ def get_keypoints_match_producer(
     # Feature extractors:
 
     def get_superpoint(config):
-        from feature_matcher.keypoint_producer import SuperPointKeypointProducer
+        from feature_matcher.keypoint_producer import (
+            SuperPointKeypointProducer,
+        )
 
         return SuperPointKeypointProducer(config)
-    
-    def get_disk(config): 
+
+    def get_disk(config):
         from feature_matcher.keypoint_producer import DISKKeypointProducer
 
         return DISKKeypointProducer(config)
@@ -350,7 +360,7 @@ def get_keypoints_match_producer(
         from feature_matcher.keypoint_producer import AlikeKeypointProducer
 
         return AlikeKeypointProducer(config)
-    
+
     def get_dalf(config):
         from feature_matcher.keypoint_producer import DALFKeypointProducer
 
@@ -369,12 +379,16 @@ def get_keypoints_match_producer(
         return FlannKeypointMatcher(config)
 
     def get_superglue(config):
-        from feature_matcher.keypoint_matcher.superglue import SuperglueKeypointMatcher
+        from feature_matcher.keypoint_matcher.superglue import (
+            SuperglueKeypointMatcher,
+        )
 
         return SuperglueKeypointMatcher(config)
 
     def get_lightglue(config):
-        from feature_matcher.keypoint_matcher.lightglue import LightglueKeypointMatcher
+        from feature_matcher.keypoint_matcher.lightglue import (
+            LightglueKeypointMatcher,
+        )
 
         return LightglueKeypointMatcher(config)
 
@@ -387,12 +401,15 @@ def get_keypoints_match_producer(
 
     def get_coarse_loftr(config):
         try:
-            from feature_matcher.kornia_loftr_matcher import Kornia_LoFTRMatchProducer
+            from feature_matcher.kornia_loftr_matcher import (
+                Kornia_LoFTRMatchProducer,
+            )
 
             # return Coarse_LoFTRMatchProducer(config)
             return Kornia_LoFTRMatchProducer(config)
-        except:
-            print("kornia not installed")
+        except ImportError as ie:
+            print(f"kornia not installed {ie}")
+            raise ie
 
     def get_loftr_ts(config):
         from feature_matcher.loftr_torchscript_matcher import (
@@ -407,19 +424,21 @@ def get_keypoints_match_producer(
         return DKMv3MatchProducer(config)
 
     def get_keyaffhard(config):
-        from feature_matcher.keypoint_producer import KeyAffHardKeypointProducer
+        from feature_matcher.keypoint_producer import (
+            KeyAffHardKeypointProducer,
+        )
 
         return KeyAffHardKeypointProducer(config)
 
     extractors = {
         "superpoint": get_superpoint,
-        "disk": get_disk, 
+        "disk": get_disk,
         "orb": get_orb,
         "sift": get_sift,
         "fast": get_fast,
         "alike": get_alike,
         "keyaffhard": get_keyaffhard,
-        "dalf": get_dalf
+        "dalf": get_dalf,
     }
     matchers = {
         "superglue": get_superglue,
@@ -439,11 +458,13 @@ def get_keypoints_match_producer(
     if matcher in matchers:
         if matcher == "lightglue" and extractors == "disk":
             matcher = get_lightglue({"weights": "disk"})
-        else: 
+        else:
             matcher = matchers[matcher](matcher_config)
 
     if extractor is not None:
-        from feature_matcher.two_stage_match_producer import TwoStageMatchProducer
+        from feature_matcher.two_stage_match_producer import (
+            TwoStageMatchProducer,
+        )
 
         return TwoStageMatchProducer(extractor, matcher)
     else:

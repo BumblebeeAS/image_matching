@@ -3,13 +3,16 @@ from typing import Tuple
 
 import cv2
 import numpy as np
+
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
 class FlannKeypointMatcher(KeypointMatcher):
     def __init__(self, config={"cross_check": True, "num_matches": 500}):
-        self.matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
+        self.matcher = cv2.DescriptorMatcher_create(
+            cv2.DescriptorMatcher_FLANNBASED
+        )
 
         # self.matcher = cv2.BFMatcher(crossCheck=config.get("cross_check", False), normType=cv2.NORM_L1)
         num_matches = config.get("num_matches", 500)
@@ -19,7 +22,10 @@ class FlannKeypointMatcher(KeypointMatcher):
         self.lock = threading.Lock()
 
     def __call__(
-        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 500
+        self,
+        keypoints1: Keypoints,
+        keypoints2: Keypoints,
+        num_keypoints: int = 500,
     ) -> Tuple[Keypoints, Keypoints]:
         """
         Finds matches between keypoints1 and keypoints2 using Brute Force Matcher.
@@ -83,10 +89,16 @@ class FlannKeypointMatcher(KeypointMatcher):
 
         # filter matches based on ratio test
         matches = [
-            match for match in matches if match.distance < 0.8 * matches[1].distance
+            match
+            for match in matches
+            if match.distance < 0.8 * matches[1].distance
         ]
 
         # get keypoints from matches
-        keypoints1 = [keypoints1.keypoints[match.queryIdx] for match in matches]
-        keypoints2 = [keypoints2.keypoints[match.trainIdx] for match in matches]
+        keypoints1 = [
+            keypoints1.keypoints[match.queryIdx] for match in matches
+        ]
+        keypoints2 = [
+            keypoints2.keypoints[match.trainIdx] for match in matches
+        ]
         return Keypoints(keypoints1), Keypoints(keypoints2)

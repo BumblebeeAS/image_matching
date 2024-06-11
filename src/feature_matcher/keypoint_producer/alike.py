@@ -1,21 +1,23 @@
+import logging
 import os
+from pathlib import Path
 import sys
 import threading
-from pathlib import Path
+
+import cv2
+import numpy as np
+import torch
+
+from feature_matcher.keypoints_match_producer import Keypoints
+from feature_matcher.two_stage_match_producer import KeypointProducer
 
 ALIKE_DIR = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[1] / "models/ALIKE"
 )  # noqa E402
 sys.path.insert(0, ALIKE_DIR)  # noqa E402
 
-import logging
-
-import cv2
-import numpy as np
-import torch
-from alike import ALike, configs
-from feature_matcher.keypoints_match_producer import Keypoints
-from feature_matcher.two_stage_match_producer import KeypointProducer
+from alike import ALike  # noqa E402
+from alike import configs  # noqa E402
 
 
 class AlikeKeypointProducer(KeypointProducer):
@@ -29,7 +31,9 @@ class AlikeKeypointProducer(KeypointProducer):
 
     def __init__(self, config={}) -> None:
         self.debug = config.get("debug", False)
-        logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.INFO
+        )
 
         self.config = {
             **AlikeKeypointProducer.default_config,
@@ -37,7 +41,9 @@ class AlikeKeypointProducer(KeypointProducer):
         }
 
         self.device = (
-            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and self.config["cuda"]
+            else "cpu"
         )
 
         self.config = {
@@ -87,5 +93,8 @@ class AlikeKeypointProducer(KeypointProducer):
         with self.lock:
             pred = self.model(preprocessed, sub_pixel=self.sub_pixel)
         return Keypoints(
-            image.shape[:2], pred["keypoints"], pred["descriptors"], pred["scores"]
+            image.shape[:2],
+            pred["keypoints"],
+            pred["descriptors"],
+            pred["scores"],
         )

@@ -1,14 +1,12 @@
 import logging
 from typing import Optional, Tuple
 
-import cv2
-import numpy as np
-import torch
-
 import kornia as K
 import kornia.feature as KF
-from kornia_moons.feature import *
 
+# from kornia_moons.feature import *
+import numpy as np
+import torch
 from typing_extensions import override
 
 from src.feature_matcher.keypoints import Keypoints
@@ -22,10 +20,12 @@ class Kornia_LoFTRMatchProducer(KeypointsMatchProducer):
         super(Kornia_LoFTRMatchProducer, self).__init__(config)
         self.W = 1024
         self.H = 768
-        self.matcher = KF.LoFTR(pretrained='outdoor').eval()
+        self.matcher = KF.LoFTR(pretrained="outdoor").eval()
 
         self.device = torch.device(
-            "cuda" if torch.cuda.is_available() and config.get("cuda", False) else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and config.get("cuda", False)
+            else "cpu"
         )
         self.matcher = self.matcher.to(self.device)
         logging.info("Successfully loaded pre-trained weights.")
@@ -33,7 +33,7 @@ class Kornia_LoFTRMatchProducer(KeypointsMatchProducer):
     @override
     def preprocess_img(self, img):
         """Convert cropped image into form required by matcher."""
-        timg1 = K.image_to_tensor(img, None).float().to(self.device) / 255.
+        timg1 = K.image_to_tensor(img, None).float().to(self.device) / 255.0
         h1, w1 = timg1.shape[2:]
         timg1 = K.geometry.transform.resize(timg1, (self.H, self.W))
         return timg1, h1, w1
@@ -48,18 +48,18 @@ class Kornia_LoFTRMatchProducer(KeypointsMatchProducer):
         template_tensor, h_template, w_template = img0.results
         other_tensor, h_other, w_other = img1.results
 
-        batch = {'image0': template_tensor, 'image1': other_tensor}
+        batch = {"image0": template_tensor, "image1": other_tensor}
         with torch.no_grad():
             out = self.matcher(batch)
-        
-        template_pts = out['keypoints0'].detach().cpu().numpy() 
-        image_pts = out['keypoints1'].detach().cpu().numpy()
-        template_pts[:,0] *= float (w_template) / float(self.W)
-        template_pts[:,1] *= float (h_template) / float(self.H)
-        image_pts[:,0] *= float (w_other) / float(self.W)
-        image_pts[:,1] *= float (h_other) / float(self.H)
 
-        mconf = out['confidence'].detach().cpu().numpy().reshape(-1)
+        template_pts = out["keypoints0"].detach().cpu().numpy()
+        image_pts = out["keypoints1"].detach().cpu().numpy()
+        template_pts[:, 0] *= float(w_template) / float(self.W)
+        template_pts[:, 1] *= float(h_template) / float(self.H)
+        image_pts[:, 0] *= float(w_other) / float(self.W)
+        image_pts[:, 1] *= float(h_other) / float(self.H)
+
+        mconf = out["confidence"].detach().cpu().numpy().reshape(-1)
 
         # Normalize confidence.
         if len(mconf) > 0:

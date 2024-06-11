@@ -14,10 +14,8 @@ from feature_matcher.models.Coarse_LoFTR_TRT.loftr import LoFTR
 from feature_matcher.models.Coarse_LoFTR_TRT.loftr.utils.cvpr_ds_config import (
     default_cfg,
 )
-from feature_matcher.models.Coarse_LoFTR_TRT.utils import (
-    get_coarse_match,
-    make_student_config,
-)
+from feature_matcher.models.Coarse_LoFTR_TRT.utils import get_coarse_match
+from feature_matcher.models.Coarse_LoFTR_TRT.utils import make_student_config
 
 LOFTR_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0] / "models/Coarse_LoFTR_TRT"
@@ -35,7 +33,9 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
         self.matcher = LoFTR(config=model_cfg)
 
         self.device = torch.device(
-            "cuda" if torch.cuda.is_available() and config.get("cuda", False) else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and config.get("cuda", False)
+            else "cpu"
         )
         checkpoint = torch.load(
             os.path.join(LOFTR_dir, "weights", "LoFTR_teacher.pt"),
@@ -55,7 +55,8 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
         """Convert cropped image into form required by matcher."""
         img_tensor, scale, lxty = self.make_query_image(img)
         img_tensor = (
-            torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+            torch.from_numpy(img_tensor)[None][None].to(device=self.device)
+            / 255.0
         )
         return (img_tensor, scale, lxty)
 
@@ -94,7 +95,9 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
         mconf = mconf[indices]
 
         # get keypoints corresponding to non-cropped image
-        mkpts0[:, :2] = (mkpts0[:, :2] - np.array(template_lxty)) / template_scale
+        mkpts0[:, :2] = (
+            mkpts0[:, :2] - np.array(template_lxty)
+        ) / template_scale
         mkpts1[:, :2] = (mkpts1[:, :2] - np.array(lxty)) / scale
         if img0.lxtyrxby is not None:
             mkpts0[:, :2] = mkpts0[:, :2] + img0.lxtyrxby[:2]
@@ -106,8 +109,10 @@ class Coarse_LoFTRMatchProducer(KeypointsMatchProducer):
 
     def make_query_image(self, frame):
         query_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        query_img, scale, lxty = Coarse_LoFTRMatchProducer.ratio_preserving_resize(
-            query_img, self.img_size
+        query_img, scale, lxty = (
+            Coarse_LoFTRMatchProducer.ratio_preserving_resize(
+                query_img, self.img_size
+            )
         )
         return query_img, scale, lxty
 

@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
-import os
 import glob
+import os
 from pathlib import Path
+import threading
 
+from ament_index_python import get_package_share_directory
+from bb_msgs.msg import DetectedObject
+from bb_msgs.msg import DetectedObjects
+from bb_msgs.srv import MLDetector
 import cv2
-import numpy as np
+from cv_bridge import CvBridge
+from cv_bridge import CvBridgeError
 import message_filters
+import numpy as np
 import rclpy
 from rclpy.node import Node
-from ament_index_python import get_package_share_directory
-from bb_msgs.msg import DetectedObjects, DetectedObject
-from bb_msgs.srv import MLDetector
-
-from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import CompressedImage
 
-from src.feature_matcher.keypoints_match_producer import get_keypoints_match_producer
-import threading
+from src.feature_matcher.keypoints_match_producer import (
+    get_keypoints_match_producer,
+)
 
 
 class BasicFeatureMatcher(Node):
@@ -35,23 +38,23 @@ class BasicFeatureMatcher(Node):
         super().__init__(name, allow_undeclared_parameters=True)
 
         # Init params
-        input_topic = self.get_parameter_or(
-            "~camera_topic", input_topic
-        )
+        input_topic = self.get_parameter_or("~camera_topic", input_topic)
         visualization_topic = self.get_parameter_or(
             "~visualization_topic", visualization_topic
         )
-        template = self.get_parameter_or(
-            "~template", template
-        )
+        template = self.get_parameter_or("~template", template)
 
         template_path = os.path.abspath(
             Path(get_package_share_directory("image_matching")) / "templates"
         )
 
-        possible_templates = glob.glob(os.path.join(template_path, f"{template}.*"))
+        possible_templates = glob.glob(
+            os.path.join(template_path, f"{template}.*")
+        )
         if not possible_templates:
-            self.get_logger().warn(f"No template found for {template} in {template_path}")
+            self.get_logger().warn(
+                f"No template found for {template} in {template_path}"
+            )
 
         template_path = self.get_parameter_or(
             "~template_path",
@@ -70,7 +73,6 @@ class BasicFeatureMatcher(Node):
         )
         matcher_name = self.get_parameter_or("~matcher", matcher_name)
 
-
         self.bridge = CvBridge()
         self.template = template
         self.template_img = cv2.imread(template_path)
@@ -80,7 +82,7 @@ class BasicFeatureMatcher(Node):
             self.image_match_producer = get_keypoints_match_producer(
                 None, "coarse_loftr", {"debug": True}, {"debug": True}
             )
-        elif matcher == "loftr":
+        elif matcher_name == "loftr":
             # TODO: Doesn't work
             self.image_match_producer = get_keypoints_match_producer(
                 None, "loftr", {"debug": True}, {"debug": True}
@@ -109,8 +111,8 @@ class BasicFeatureMatcher(Node):
             self.image_match_producer = get_keypoints_match_producer(
                 "orb", "bf", {"debug": True}, {"debug": True}
             )
-        elif matcher == "orb_flann":
-            image_match_producer = get_keypoints_match_producer(
+        elif matcher_name == "orb_flann":
+            self.image_match_producer = get_keypoints_match_producer(
                 "orb", "flann", {"debug": True}, {"debug": True}
             )
         elif matcher_name == "alike_bf":
@@ -121,15 +123,11 @@ class BasicFeatureMatcher(Node):
             raise NotImplementedError(f"Matcher: {matcher_name} is unknown!")
 
         self.visualization_pub = self.create_publisher(
-            CompressedImage,
-            visualization_topic,
-            1
+            CompressedImage, visualization_topic, 1
         )
 
         self.detected_object_pub = self.create_publisher(
-            DetectedObjects,
-            detected_objects_topic,
-            1
+            DetectedObjects, detected_objects_topic, 1
         )
 
         # self.visualization_pub = rospy.Publisher(
@@ -144,14 +142,20 @@ class BasicFeatureMatcher(Node):
             )
         )
 
-        self.image_match_producer.register_template(template, cv2.imread(template_path))
+        self.image_match_producer.register_template(
+            template, cv2.imread(template_path)
+        )
 
         self.PADDING = 10
         self.save_detections_folder = save_detections_folder
 
-        self.image_sub = message_filters.Subscriber(self, CompressedImage, input_topic)
+        self.image_sub = message_filters.Subscriber(
+            self, CompressedImage, input_topic
+        )
         # self.image_sub = message_filters.Subscriber(input_topic, CompressedImage)
-        ts = message_filters.ApproximateTimeSynchronizer([self.image_sub], 10, 1)
+        ts = message_filters.ApproximateTimeSynchronizer(
+            [self.image_sub], 10, 1
+        )
         ts.registerCallback(self.cropped_image_callback)
 
         # Detector service for Vision
@@ -178,8 +182,12 @@ class BasicFeatureMatcher(Node):
         resp.runningDetectors = [self.template]
         return resp
 
-    def cropped_image_callback(self, img_msg, detected_objects=None, debug=False):
-        self.get_logger().debug(f"Received image {img_msg.header.seq}", throttle_duration_sec=10)
+    def cropped_image_callback(
+        self, img_msg, detected_objects=None, debug=False
+    ):
+        self.get_logger().debug(
+            f"Received image {img_msg.header.seq}", throttle_duration_sec=10
+        )
         # rospy.logdebug_throttle(10, f"Received image {img_msg.header.seq}")
         try:
             img = self.bridge.compressed_imgmsg_to_cv2(img_msg, "bgr8")
@@ -221,7 +229,12 @@ class BasicFeatureMatcher(Node):
             min_y = np.min(kp2[:, 1])
             max_y = np.max(kp2[:, 1])
 
-            contours = [(min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, max_y)]
+            contours = [
+                (min_x, min_y),
+                (min_x, max_y),
+                (max_x, max_y),
+                (max_x, max_y),
+            ]
 
             cx = int((max_x + min_x) / 2)
             cy = int((max_y + min_y) / 2.0)
@@ -243,7 +256,9 @@ class BasicFeatureMatcher(Node):
                 obj.bbox_height = h
                 obj.bbox_width = w
 
-                obj.contour = [int(coord) for point in contours for coord in point]
+                obj.contour = [
+                    int(coord) for point in contours for coord in point
+                ]
 
                 obj.image_height = 768
                 obj.image_width = 1024
@@ -254,15 +269,15 @@ class BasicFeatureMatcher(Node):
 
 def main():
     rclpy.init()
-    
+
     camera_topic = "/auv4/front_cam/image_rect_color/compressed"
     visualization_topic = "/visualization/compressed"
     template = "Bootlegger"
     template_path = os.path.abspath(
-            Path(get_package_share_directory("image_matching"))
-            / "templates"
-            / f"{template}.png"
-        )
+        Path(get_package_share_directory("image_matching"))
+        / "templates"
+        / f"{template}.png"
+    )
     matcher = "coarse_loftr"
     detected_objects_topic = "/auv4/vision/external/detected"
     save_detections_folder = "detections"
@@ -319,5 +334,6 @@ def main():
     # )
     # rospy.spin()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

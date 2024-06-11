@@ -1,8 +1,15 @@
 import os
-import sys
 from pathlib import Path
+import sys
+from typing import Optional, Tuple
 
+import cv2
+import numpy as np
+import torch
 from typing_extensions import override
+
+from feature_matcher.keypoints import Keypoints
+from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 
 LoFTR_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0]
@@ -15,15 +22,8 @@ QuadTreeAttn_DIR = os.path.abspath(
 )  # noqa E402
 sys.path.append(QuadTreeAttn_DIR)  # noqa E402
 
-from typing import Optional, Tuple
-
-import cv2
-import numpy as np
-import torch
-from loftr import LoFTR, default_cfg
-
-from feature_matcher.keypoints import Keypoints
-from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
+from loftr import LoFTR  # noqa E402
+from loftr import default_cfg  # noqa E402
 
 # Requires CUDA.
 # Download weights from github: `https://github.com/Tangshitao/QuadTreeAttention/releases/download/QuadTreeAttention_feature_match/outdoor.ckpt`
@@ -57,7 +57,8 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
         """Convert cropped image into form required by matcher."""
         img_tensor, scale, lxty = self.make_query_image(img)
         img_tensor = (
-            torch.from_numpy(img_tensor)[None][None].to(device=self.device) / 255.0
+            torch.from_numpy(img_tensor)[None][None].to(device=self.device)
+            / 255.0
         )
         return (img_tensor, scale, lxty)
 
@@ -73,7 +74,10 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
         other_tensor, scale, lxty = img1.results
 
         with torch.no_grad():
-            self.last_data = {"image0": template_tensor, "image1": other_tensor}
+            self.last_data = {
+                "image0": template_tensor,
+                "image1": other_tensor,
+            }
             self.matcher(self.last_data)
 
         mkpts0 = self.last_data["mkpts0_f"].cpu().numpy()
@@ -88,7 +92,9 @@ class LoFTRMatchProducer(KeypointsMatchProducer):
         mconf = mconf[indices]
 
         # get keypoints corresponding to original image
-        mkpts0[:, :2] = (mkpts0[:, :2] - np.array(template_lxty)) / template_scale
+        mkpts0[:, :2] = (
+            mkpts0[:, :2] - np.array(template_lxty)
+        ) / template_scale
         mkpts1[:, :2] = (mkpts1[:, :2] - np.array(lxty)) / scale
         if img0.lxtyrxby is not None:
             mkpts0[:, :2] = mkpts0[:, :2] + img0.lxtyrxby[:2]
