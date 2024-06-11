@@ -59,6 +59,7 @@ class XFeatKeypointProducer(KeypointProducer):
         self.lock = threading.Lock()
 
     # Up to us to change this, XFeat can accept RGB or grayscale
+    # XFeat has own parse input function
     def preprocess(self, image) -> np.ndarray:
         try:
             if image.shape[2] == 3:
@@ -84,11 +85,11 @@ class XFeatKeypointProducer(KeypointProducer):
 
         Consider adding option to use detectAndComputeDense
         """
-        preprocessed = self.preprocess(image)
-        print(preprocessed.shape)
+        # preprocessed = self.preprocess(image)
+        input = self.model.parse_input(image)
         with self.lock:
             # XFeat handles additional preprocessing, such as conversion into tensor
-            pred = self.model.detectAndCompute(preprocessed)[0]
+            pred = self.model.detectAndCompute(input)[0]
             # pred contains keypoints, scores and descriptors
         return Keypoints(
             image.shape[:2], pred["keypoints"], pred["descriptors"], pred["scores"]

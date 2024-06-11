@@ -48,7 +48,7 @@ class XFeatKeypointMatcher(KeypointMatcher):
     # not sure if preprocessing is necessary, ideally keypoints also generated from xfeat
     def __call__(self, keypoints1: Keypoints, keypoints2: Keypoints):
         # matching occurs on descriptors
-        idxs0, idxs1 = self.model.match(torch.tensor(keypoints1.descriptors), torch.tensor(keypoints2.descriptors), min_cossim=-1)
+        idxs0, idxs1 = self.model.match(torch.tensor(keypoints1.descriptors), torch.tensor(keypoints2.descriptors), min_cossim=0.82)
         
         # does not give confidence of match?
         # select relevant keypoints
