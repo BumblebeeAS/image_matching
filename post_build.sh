@@ -2,7 +2,7 @@
 
 # Paths
 CURRENT_DIR="$(pwd)"
-INSTALL_DIR="$CURRENT_DIR/../../install/image_matching/lib/python3.10/site-packages/feature_matcher"
+INSTALL_DIR="$(ros2 pkg prefix image_matching)/lib/python3.10/site-packages/feature_matcher"
 MODELS_DIR="$CURRENT_DIR/src/feature_matcher/models/"
 
 # Remove models directory at install/
