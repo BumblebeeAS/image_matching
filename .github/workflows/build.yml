@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: [self-hosted, ros-noetic]
+    runs-on: [self-hosted, ros2-humble]
     steps:
       # - name: Setup ROS
       #   uses: ros-tooling/setup-ros@v0.3
@@ -15,26 +15,27 @@ jobs:
       #     run: sudo apt-get install python3-catkin-tools xorg-dev libjsoncpp-dev qtbase5-dev
 
       - name: Setup catkin workspace
-        run: source /opt/ros/noetic/setup.bash && catkin init
+        run: source /opt/ros/humble/setup.bash
 
       - name: Check out repo
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.CI_TOKEN }}
           path: src/image_matching
-      
+
       - name: Check out bb_msgs
         uses: actions/checkout@v3
         with:
           repository: BumblebeeAS/bb_msgs
           token: ${{ secrets.CI_TOKEN }}
           path: src/bb_msgs
+          ref: humble
 
       - name: Install dependencies
-        run: source /opt/ros/noetic/setup.bash && rosdep update && rosdep install --from-paths src -i -r -y
+        run: source /opt/ros/humble/setup.bash && rosdep update && rosdep install --from-paths src -i -r -y
 
       - name: Build
-        run: source /opt/ros/noetic/setup.bash && catkin build --no-status 
-      
-      - name: Run tests
-        run: source devel/setup.bash && ./src/image_matching/tests/test_matcher_service.py
+        run: source /opt/ros/humble/setup.bash && colcon build
+
+      # - name: Run tests
+      #   run: source devel/setup.bash && ./src/image_matching/tests/test_matcher_service.py

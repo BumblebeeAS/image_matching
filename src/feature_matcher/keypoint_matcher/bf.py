@@ -2,6 +2,7 @@ import threading
 from typing import Tuple
 
 import cv2
+
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
@@ -25,10 +26,13 @@ class BFKeypointMatcher(KeypointMatcher):
             crossCheck=config.get("cross_check", True),
             normType=get_norm_type(config.get("norm_type", "l2")),
         )
-        self.lock  = threading.Lock()
+        self.lock = threading.Lock()
 
     def __call__(
-        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 500
+        self,
+        keypoints1: Keypoints,
+        keypoints2: Keypoints,
+        num_keypoints: int = 500,
     ) -> Tuple[Keypoints, Keypoints]:
         """
         Finds matches between keypoints1 and keypoints2 using Brute Force Matcher.
@@ -41,7 +45,9 @@ class BFKeypointMatcher(KeypointMatcher):
             M Keypoints in the second image that matches to keypoints in first image.
         """
         with self.lock:
-            matches = self.matcher.match(keypoints1.descriptors, keypoints2.descriptors)
+            matches = self.matcher.match(
+                keypoints1.descriptors, keypoints2.descriptors
+            )
         selected_matches = []
         matches1, matches2 = [], []
 
@@ -89,10 +95,16 @@ class BFKeypointMatcher(KeypointMatcher):
 
         # filter matches based on ratio test
         matches = [
-            match for match in matches if match.distance < 0.8 * matches[1].distance
+            match
+            for match in matches
+            if match.distance < 0.8 * matches[1].distance
         ]
 
         # get keypoints from matches
-        keypoints1 = [keypoints1.keypoints[match.queryIdx] for match in matches]
-        keypoints2 = [keypoints2.keypoints[match.trainIdx] for match in matches]
+        keypoints1 = [
+            keypoints1.keypoints[match.queryIdx] for match in matches
+        ]
+        keypoints2 = [
+            keypoints2.keypoints[match.trainIdx] for match in matches
+        ]
         return Keypoints(keypoints1), Keypoints(keypoints2)

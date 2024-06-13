@@ -1,61 +1,66 @@
 #!/usr/bin/env python3
+
 import copy
+from dataclasses import dataclass
 import glob
 import json
 import logging
+from operator import attrgetter
 import os
+from pathlib import Path
 import threading
 import traceback
-from dataclasses import dataclass
-from operator import attrgetter
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Set, Tuple
 
-import cv2
-import numpy as np
-import pandas as pd
-# import rospy
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile
-from rclpy.time import Time
-from rclpy.duration import Duration
-from rclpy.subscription import Subscription
-from rclpy.executors import MultiThreadedExecutor
 from ament_index_python import get_package_share_directory
-
-import tf2_ros
 from bb_msgs.msg import DetectedObjects
-from bb_msgs.srv import (
-    IMPoseEstimatorConfig,
-    IMPoseEstimatorGetStatus,
-    IMPoseEstimatorGetTemplates,
-    IMPoseEstimatorRegisterTemplate,
-    IMPoseEstimatorToggleTemplate,
-    IMPoseEstimatorUpdateKeypointMatches,
-)
-from cv_bridge import CvBridge, CvBridgeError
+from bb_msgs.srv import IMPoseEstimatorConfig
+from bb_msgs.srv import IMPoseEstimatorGetStatus
+from bb_msgs.srv import IMPoseEstimatorGetTemplates
+from bb_msgs.srv import IMPoseEstimatorRegisterTemplate
+from bb_msgs.srv import IMPoseEstimatorToggleTemplate
+from bb_msgs.srv import IMPoseEstimatorUpdateKeypointMatches
+import cv2
+from cv_bridge import CvBridge
+from cv_bridge import CvBridgeError
 from feature_matcher.keypoints_match_producer import (
-    KeypointsMatchProducer,
     get_keypoints_match_producer,
 )
-from geometry_msgs.msg import (
-    Point,
-    PoseStamped,
-    PoseWithCovarianceStamped,
-    Quaternion,
-    TransformStamped,
-    Vector3,
-)
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import Vector3
 from nav_msgs.msg import Odometry
+import numpy as np
+import pandas as pd
 from pose_estimator.PinholeCamera import PinholeCamera
 from pose_estimator.pose_estimator import PoseEstimator
 from pose_estimator.pose_weighted_average import get_kmeans_center
-from rospkg import RosPack
-from sensor_msgs.msg import CameraInfo, CompressedImage
-from transforms3d.affines import compose, decompose
-from transforms3d.euler import euler2quat, mat2euler, quat2euler
-from transforms3d.quaternions import mat2quat, qinverse, qmult, quat2mat
+
+# import rospy
+import rclpy
+from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from rclpy.signals import SignalHandlerGuardCondition
+from rclpy.time import Time
+from rclpy.utilities import timeout_sec_to_nsec
+from sensor_msgs.msg import CameraInfo
+from sensor_msgs.msg import CompressedImage
+import tf2_ros
+from transforms3d.affines import compose
+from transforms3d.affines import decompose
+from transforms3d.euler import euler2quat
+from transforms3d.euler import mat2euler
+from transforms3d.euler import quat2euler
+from transforms3d.quaternions import mat2quat
+from transforms3d.quaternions import qinverse
+from transforms3d.quaternions import qmult
+from transforms3d.quaternions import quat2mat
 
 mutex = threading.Lock()
 
@@ -88,16 +93,9 @@ class TemplateObject:
     min_buffer_size: int
     max_buffer_size: int
     max_history: float
-from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
-from rclpy.node import Node
-from rclpy.signals import SignalHandlerGuardCondition
-from rclpy.utilities import timeout_sec_to_nsec
-def wait_for_message(
-    msg_type,
-    node: 'Node',
-    topic: str,
-    time_to_wait=-1
-):
+
+
+def wait_for_message(msg_type, node: "Node", topic: str, time_to_wait=-1):
     """
     Wait for the next incoming message.
     :param msg_type: message type
@@ -119,8 +117,8 @@ def wait_for_message(
     timeout_nsec = timeout_sec_to_nsec(time_to_wait)
     wait_set.wait(timeout_nsec)
 
-    subs_ready = wait_set.get_ready_entities('subscription')
-    guards_ready = wait_set.get_ready_entities('guard_condition')
+    subs_ready = wait_set.get_ready_entities("subscription")
+    guards_ready = wait_set.get_ready_entities("guard_condition")
 
     if guards_ready:
         if sigint_gc.handle.pointer in guards_ready:
@@ -131,6 +129,7 @@ def wait_for_message(
             msg_info = sub.handle.take_message(sub.msg_type, sub.raw)
             return (True, msg_info[0])
     return (False, None)
+
 
 def transform_buoy_stabilized(quat):
     q1 = euler2quat(np.pi / 2, 0, np.pi / 2, "rzyx")
@@ -188,21 +187,25 @@ def get_matcher(matcher):
         image_match_producer = get_keypoints_match_producer(
             "keyaffhard", "flann", {"debug": True}, {"debug": True}
         )
-    elif matcher == "disk_lightglue": 
+    elif matcher == "disk_lightglue":
         image_match_producer = get_keypoints_match_producer(
-            "disk", "lightglue", {"debug": True}, {"debug": True, "weights": "disk"}
+            "disk",
+            "lightglue",
+            {"debug": True},
+            {"debug": True, "weights": "disk"},
         )
-    elif matcher == "dalf_flann": 
+    elif matcher == "dalf_flann":
         image_match_producer = get_keypoints_match_producer(
             "dalf", "flann", {"debug": True}, {"debug": True}
         )
-    elif matcher == "dalf_bf": 
+    elif matcher == "dalf_bf":
         image_match_producer = get_keypoints_match_producer(
             "dalf", "bf", {"debug": True}, {"debug": True}
         )
     else:
         raise NotImplementedError(f"Matcher {matcher} unimplemented!")
     return image_match_producer
+
 
 class BasicPoseEstimator(Node):
     def publish_img(self, img):
@@ -212,7 +215,6 @@ class BasicPoseEstimator(Node):
             )
         except Exception as e:
             self.get_logger().error(str(e))
-
 
     def filter_forward_facing(self, pose):
         """
@@ -228,18 +230,18 @@ class BasicPoseEstimator(Node):
             return False
         return True
 
-
     def filter_bottom_facing(self, pose):
         if pose[2] < 0 or pose[2] > 3:
             self.get_logger().warn("Rubbish z", throttle_duration_sec=1)
             return False
         y, p, r = np.rad2deg(quat2euler(pose[3:], "rzyx"))
         if r >= 45 or r <= -45 or p >= 45 or p <= -45:
-            self.get_logger().warn(f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}",
-                                throttle_duration_sec=1)
+            self.get_logger().warn(
+                f">>>>>>>>> ignore: r:{r} p: {p}, y: {y}",
+                throttle_duration_sec=1,
+            )
             return False
         return True
-
 
     def __init__(
         self,
@@ -251,7 +253,7 @@ class BasicPoseEstimator(Node):
         # map_ned_frame="world_ned"
     ):
         super().__init__("pose_estimator", allow_undeclared_parameters=False)
-    
+
         # matchers,
         # visualization_topic,
         # detected_objects_topic,
@@ -260,50 +262,99 @@ class BasicPoseEstimator(Node):
         # map_ned_frame,
         # rospy.init_node("pose_estimator_dev", anonymous=False, log_level=rospy.INFO)
         self.declare_parameter("debug", rclpy.Parameter.Type.BOOL)
-        self.declare_parameter("front_camera_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("front_camera_info_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("bottom_camera_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("bottom_camera_info_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("visualization_topic", rclpy.Parameter.Type.STRING)
-        self.declare_parameter("detected_objects_topic", rclpy.Parameter.Type.STRING)
+        self.declare_parameter(
+            "front_camera_topic", rclpy.Parameter.Type.STRING
+        )
+        self.declare_parameter(
+            "front_camera_info_topic", rclpy.Parameter.Type.STRING
+        )
+        self.declare_parameter(
+            "bottom_camera_topic", rclpy.Parameter.Type.STRING
+        )
+        self.declare_parameter(
+            "bottom_camera_info_topic", rclpy.Parameter.Type.STRING
+        )
+        self.declare_parameter(
+            "visualization_topic", rclpy.Parameter.Type.STRING
+        )
+        self.declare_parameter(
+            "detected_objects_topic", rclpy.Parameter.Type.STRING
+        )
         self.declare_parameter("matcher", rclpy.Parameter.Type.STRING)
         self.declare_parameter("map_ned_frame", rclpy.Parameter.Type.STRING)
 
-        self.debug = self.get_parameter_or("debug", True).get_parameter_value().bool_value
+        self.debug = (
+            self.get_parameter_or("debug", True)
+            .get_parameter_value()
+            .bool_value
+        )
         if self.debug:
             self.debug_file = open("debug_poses.csv", "w")
-            self.get_logger().info(f"Writing debug poses to {os.path.abspath(self.debug_file.name)}")
+            self.get_logger().info(
+                f"Writing debug poses to {os.path.abspath(self.debug_file.name)}"
+            )
             rclpy.get_default_context().on_shutdown(self.debug_file.close)
-        front_camera_topic = self.get_parameter_or(
-            "front_camera_topic", "/auv4/front_cam/image_rect_color/compressed"
-        ).get_parameter_value().string_value
-        front_camera_info_topic = self.get_parameter_or(
-            "front_camera_info_topic", "/auv4/front_cam/camera_info"
-        ).get_parameter_value().string_value
-        bottom_camera_topic = self.get_parameter_or(
-            "bottom_camera_topic", "/auv4/bot_cam/image_rect_color/compressed"
-        ).get_parameter_value().string_value
-        bottom_camera_info_topic = self.get_parameter_or(
-            "bottom_camera_info_topic", "/auv4/bot_cam/camera_info"
-        ).get_parameter_value().string_value
-        visualization_topic = self.get_parameter_or(
-            "visualization_topic", "/pose_estimator_vis/compressed"
-        ).get_parameter_value().string_value
+        front_camera_topic = (
+            self.get_parameter_or(
+                "front_camera_topic",
+                "/auv4/front_cam/image_rect_color/compressed",
+            )
+            .get_parameter_value()
+            .string_value
+        )
+        front_camera_info_topic = (
+            self.get_parameter_or(
+                "front_camera_info_topic", "/auv4/front_cam/camera_info"
+            )
+            .get_parameter_value()
+            .string_value
+        )
+        bottom_camera_topic = (
+            self.get_parameter_or(
+                "bottom_camera_topic",
+                "/auv4/bot_cam/image_rect_color/compressed",
+            )
+            .get_parameter_value()
+            .string_value
+        )
+        bottom_camera_info_topic = (
+            self.get_parameter_or(
+                "bottom_camera_info_topic", "/auv4/bot_cam/camera_info"
+            )
+            .get_parameter_value()
+            .string_value
+        )
+        visualization_topic = (
+            self.get_parameter_or(
+                "visualization_topic", "/pose_estimator_vis/compressed"
+            )
+            .get_parameter_value()
+            .string_value
+        )
 
-        detected_objects_topic = self.get_parameter_or(
-            "detected_objects_topic", None).get_parameter_value().string_value
+        # detected_objects_topic = (
+        #     self.get_parameter_or("detected_objects_topic", None)
+        #     .get_parameter_value()
+        #     .string_value
+        # )
 
-        matcher = self.get_parameter_or(
-            "matcher", "sift_flann").get_parameter_value().string_value
-        map_ned_frame = self.get_parameter_or(
-            "map_ned_frame", "map_ned").get_parameter_value().string_value
+        matcher = (
+            self.get_parameter_or("matcher", "sift_flann")
+            .get_parameter_value()
+            .string_value
+        )
+        map_ned_frame = (
+            self.get_parameter_or("map_ned_frame", "map_ned")
+            .get_parameter_value()
+            .string_value
+        )
 
         # Register templates, template dimensions from json file
         templates_dir = os.path.abspath(
             Path(get_package_share_directory("image_matching")) / "templates"
         )
 
-# define image_matchers
+        # define image_matchers
         image_match_producers = {}
         image_match_producers["sift_flann"] = get_matcher("sift_flann")
         # image_match_producers["dalf_bf"] = get_matcher("dalf_bf")
@@ -311,8 +362,6 @@ class BasicPoseEstimator(Node):
         # image_match_producers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
         if matcher not in image_match_producers:
             image_match_producers[matcher] = get_matcher(matcher)
-
-
 
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -332,15 +381,17 @@ class BasicPoseEstimator(Node):
             self.pose_estimator.visualize_callbacks.append(self.publish_img)
         self.map_ned_frame = map_ned_frame
 
-        self.active_templates: Set[
-            Tuple[str, str]
-        ] = set()  # (template_name, camera_frame_id)
+        self.active_templates: Set[Tuple[str, str]] = (
+            set()
+        )  # (template_name, camera_frame_id)
 
-        self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=30), node=self)
+        self.tf_buffer = tf2_ros.Buffer(
+            cache_time=Duration(seconds=30), node=self
+        )
         self.br = tf2_ros.StaticTransformBroadcaster(self)
-        self.odom_pub = self.create_publisher(Odometry,
-                                              "impose_estimates",
-                                              qos_profile=1)
+        self.odom_pub = self.create_publisher(
+            Odometry, "impose_estimates", qos_profile=1
+        )
 
         self.update_keypoint_matches_service = self.create_service(
             IMPoseEstimatorUpdateKeypointMatches,
@@ -350,7 +401,7 @@ class BasicPoseEstimator(Node):
         self.get_templates_service = self.create_service(
             IMPoseEstimatorGetTemplates,
             "impose_get_templates",
-            self.get_templates
+            self.get_templates,
         )
         self.register_template_service = self.create_service(
             IMPoseEstimatorRegisterTemplate,
@@ -368,9 +419,7 @@ class BasicPoseEstimator(Node):
             self.get_status,
         )
         self.config_service = self.create_service(
-            IMPoseEstimatorConfig,
-            "impose_config",
-            self.update_config
+            IMPoseEstimatorConfig, "impose_config", self.update_config
         )
 
         self.PADDING = 10
@@ -405,19 +454,24 @@ class BasicPoseEstimator(Node):
             # "buoy2-4": transform_buoy_stabilized,
         }
 
-
         # NOTE: template.json values are real world dimensions corresponding to
         # width and height of image: [width, height] in meters.
-        templates = json.loads(open(os.path.join(templates_dir, "templates.json")).read())
+        templates = json.loads(
+            open(os.path.join(templates_dir, "templates.json")).read()
+        )
         for template in templates.keys():
             if template.startswith("_"):
                 continue
             template = os.path.splitext(template)[0]
             template_path = os.path.join(templates_dir, template)
-            possible_templates = glob.glob(os.path.join(templates_dir, f"{template}.*"))
+            possible_templates = glob.glob(
+                os.path.join(templates_dir, f"{template}.*")
+            )
             if not possible_templates:
-                self.get_logger().warn(f"No template found for {template} in {templates_dir}",
-                                    once=True)
+                self.get_logger().warn(
+                    f"No template found for {template} in {templates_dir}",
+                    once=True,
+                )
                 continue
             template_path = possible_templates[-1]  # take newest template
             self.get_logger().info(f"Registering template {template_path}")
@@ -433,11 +487,14 @@ class BasicPoseEstimator(Node):
             else:
                 template_width = templates[template_filename]["dimensions"][0]
                 template_height = templates[template_filename]["dimensions"][1]
-                for region_name, region in templates[template_filename]["regions"].items():
+                for region_name, region in templates[template_filename][
+                    "regions"
+                ].items():
                     template_name = f"{template}_{region_name}"
                     if template_name in templates.keys():
-                        self.get_logger().warn(f"{template_name} already registered!",
-                                            once=True)
+                        self.get_logger().warn(
+                            f"{template_name} already registered!", once=True
+                        )
                         continue
                     regions[template_name] = region
 
@@ -445,8 +502,14 @@ class BasicPoseEstimator(Node):
                 if not isinstance(region, list) or len(region) != 4:
                     continue
                 x1, y1, x2, y2 = region
-                x1, x2 = int(x1 * template_img.shape[1]), int(x2 * template_img.shape[1])
-                y1, y2 = int(y1 * template_img.shape[0]), int(y2 * template_img.shape[0])
+                x1, x2 = (
+                    int(x1 * template_img.shape[1]),
+                    int(x2 * template_img.shape[1]),
+                )
+                y1, y2 = (
+                    int(y1 * template_img.shape[0]),
+                    int(y2 * template_img.shape[0]),
+                )
                 template_img_width, template_img_height = x2 - x1, y2 - y1
                 region_img = template_img[y1:y2, x1:x2]
                 print(template_img.shape, region_img.shape)
@@ -455,23 +518,36 @@ class BasicPoseEstimator(Node):
                     (y1 + y2) / 2 - template_img.shape[0] / 2,
                 )
                 region_offset = (
-                    region_px_offset[0] / template_img.shape[1] * template_width,
-                    region_px_offset[1] / template_img.shape[0] * template_height,
+                    region_px_offset[0]
+                    / template_img.shape[1]
+                    * template_width,
+                    region_px_offset[1]
+                    / template_img.shape[0]
+                    * template_height,
                 )
                 region_width, region_height = (
-                    (template_img_width / template_img.shape[1]) * template_width,
-                    (template_img_height / template_img.shape[0]) * template_height,
+                    (template_img_width / template_img.shape[1])
+                    * template_width,
+                    (template_img_height / template_img.shape[0])
+                    * template_height,
                 )
 
                 if region_img.shape[0] > 480 or region_img.shape[1] > 480:
-                    self.get_logger().error(f"Region {region_name} is too large! Resizing the image")
+                    self.get_logger().error(
+                        f"Region {region_name} is too large! Resizing the image"
+                    )
                     if template_img_height > template_img_width:
-                        template_img_width, template_img_height = 480, int(
-                            480 * template_img_width / template_img_height
+                        template_img_width, template_img_height = (
+                            480,
+                            int(
+                                480 * template_img_width / template_img_height
+                            ),
                         )
                     else:
                         template_img_width, template_img_height = (
-                            int(480 * region_img.shape[0] / region_img.shape[1]),
+                            int(
+                                480 * region_img.shape[0] / region_img.shape[1]
+                            ),
                             480,
                         )
                     region_img = cv2.resize(
@@ -492,7 +568,10 @@ class BasicPoseEstimator(Node):
 
         print("Registered templates")
         try:
-            if front_camera_topic is not None and front_camera_info_topic is not None:
+            if (
+                front_camera_topic is not None
+                and front_camera_info_topic is not None
+            ):
                 valid, front_camera_info = wait_for_message(
                     CameraInfo, self, front_camera_info_topic, time_to_wait=10
                 )
@@ -505,8 +584,10 @@ class BasicPoseEstimator(Node):
                         front_camera_info, "rect" in front_camera_topic
                     ),
                 )
-        except Exception as e:
-            self.get_logger().warn(f"Front camera not found! Using default {e}")
+        except ValueError as e:
+            self.get_logger().warn(
+                f"Front camera not found! Using default {e}"
+            )
             self.register_camera(
                 front_camera_topic,
                 PinholeCamera(
@@ -520,7 +601,10 @@ class BasicPoseEstimator(Node):
                 ),
             )
         try:
-            if bottom_camera_topic is not None and bottom_camera_info_topic is not None:
+            if (
+                bottom_camera_topic is not None
+                and bottom_camera_info_topic is not None
+            ):
                 valid, bottom_camera_info = wait_for_message(
                     CameraInfo, self, bottom_camera_info_topic, time_to_wait=10
                 )
@@ -532,8 +616,10 @@ class BasicPoseEstimator(Node):
                         bottom_camera_info, "rect" in bottom_camera_topic
                     ),
                 )
-        except:
-            self.get_logger().warn("Bottom camera not found! Using default")
+        except ValueError as e:
+            self.get_logger().warn(
+                f"Bottom camera not found! Using default {e}"
+            )
             self.register_camera(
                 bottom_camera_topic,
                 PinholeCamera(
@@ -549,7 +635,6 @@ class BasicPoseEstimator(Node):
 
         self.create_timer(0.05, self.cropped_image_callback)
 
-
     def teardown(self):
         for sub in self.subscribers.values():
             sub.unregister()
@@ -560,27 +645,33 @@ class BasicPoseEstimator(Node):
         if template_name not in self.templates.keys():
             # self.templates[template_name] = self.create_default_template(template_name, template_name, (0, 0))
             self.get_logger().error(f"Template {template_name} not registered")
-            res.success=False
+            res.success = False
             return res
 
         if matcher not in self.image_match_producers.keys():
             self.get_logger().error(f"Matcher {matcher} not loaded")
-            res.success=False
+            res.success = False
             return res
 
         object_name = self.templates[template_name].object_name
         if object_name not in self.template_objects.keys():
             self.get_logger().error(f"Object {object_name} not registered")
-            res.success=False
+            res.success = False
             return res
 
         setattr(
-            self.template_objects[object_name], "min_buffer_size", req.min_buffer_size
+            self.template_objects[object_name],
+            "min_buffer_size",
+            req.min_buffer_size,
         )
         setattr(
-            self.template_objects[object_name], "max_buffer_size", req.max_buffer_size
+            self.template_objects[object_name],
+            "max_buffer_size",
+            req.max_buffer_size,
         )
-        setattr(self.template_objects[object_name], "max_history", req.max_history)
+        setattr(
+            self.template_objects[object_name], "max_history", req.max_history
+        )
 
         if req.reset:
             self.template_objects[object_name].poses = pd.DataFrame(
@@ -599,7 +690,7 @@ class BasicPoseEstimator(Node):
         self.get_logger().info(
             f"Config updated: {req} {self.templates[template_name]} {self.template_objects[object_name]}"
         )
-        res.success=True
+        res.success = True
         return res
 
     def get_templates(self, req, res):
@@ -635,13 +726,21 @@ class BasicPoseEstimator(Node):
         if req.enabled:
             self.active_templates.add((req.template_name, req.camera_frame_id))
         else:
-            if (req.template_name, req.camera_frame_id) not in self.active_templates:
+            if (
+                req.template_name,
+                req.camera_frame_id,
+            ) not in self.active_templates:
                 res.new_state = False
                 res.error_message = f"Template {req.template_name} not active"
                 return res
-            self.active_templates.remove((req.template_name, req.camera_frame_id))
+            self.active_templates.remove(
+                (req.template_name, req.camera_frame_id)
+            )
         print("toggled template", self.subscribers)
-        res.new_state = (req.template_name, req.camera_frame_id) in self.active_templates
+        res.new_state = (
+            req.template_name,
+            req.camera_frame_id,
+        ) in self.active_templates
         res.error_message = ""
         return res
 
@@ -649,7 +748,9 @@ class BasicPoseEstimator(Node):
     def create_default_object(name):
         return TemplateObject(
             name,
-            pd.DataFrame(columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]),
+            pd.DataFrame(
+                columns=["stamp", "x", "y", "z", "qw", "qx", "qy", "qz"]
+            ),
             None,
             1,  # min_buffer_size
             30,  # max_buffer_size
@@ -669,7 +770,11 @@ class BasicPoseEstimator(Node):
             offset,  # of template center from object center
         )
 
-    def get_status(self, req: IMPoseEstimatorGetStatus.Request, res: IMPoseEstimatorGetStatus.Response):
+    def get_status(
+        self,
+        req: IMPoseEstimatorGetStatus.Request,
+        res: IMPoseEstimatorGetStatus.Response,
+    ):
         if req.template_name not in self.templates.keys():
             res.is_valid = False
             return res
@@ -679,7 +784,8 @@ class BasicPoseEstimator(Node):
             res.is_valid = False
             return res
         time_since_last = (
-            self.get_clock().now().seconds_nanoseconds()[0] - template_object.computed_pose.header.stamp.sec
+            self.get_clock().now().seconds_nanoseconds()[0]
+            - template_object.computed_pose.header.stamp.sec
         )
         if (
             template_object.max_history > 0
@@ -693,18 +799,21 @@ class BasicPoseEstimator(Node):
         res.num_poses = len(template_object.poses)
         return res
 
-    def register_template(self, img, name, dimensions, object_name, offset=(0, 0)):
+    def register_template(
+        self, img, name, dimensions, object_name, offset=(0, 0)
+    ):
         # if self.pose_estimator is None:
         #     self.get_logger().error("pose_estimator not defined")
         #     return
         self.pose_estimator.register_template(name, dimensions, img)
         if object_name not in self.template_objects.keys():
-            self.template_objects[object_name] = self.create_default_object(object_name)
+            self.template_objects[object_name] = self.create_default_object(
+                object_name
+            )
         self.templates[name] = BasicPoseEstimator.create_default_template(
             name, object_name, offset
         )
         self.get_logger().error(f"registered template {name}")
-
 
     @staticmethod
     def equalize_green_blue(img):
@@ -717,7 +826,9 @@ class BasicPoseEstimator(Node):
 
         return img_eq
 
-    def register_template_cb(self, req: IMPoseEstimatorRegisterTemplate.Request, res):
+    def register_template_cb(
+        self, req: IMPoseEstimatorRegisterTemplate.Request, res
+    ):
         compressed_image_topic_name = req.image_topic_name
         detected_objects_topic_name = req.detected_objects_topic_name
         object_name = req.object_name
@@ -726,11 +837,19 @@ class BasicPoseEstimator(Node):
             if detected_objects_topic_name != "" and object_name != "":
                 for i in range(3):
                     valid, detected_objects = wait_for_message(
-                        DetectedObjects, self, detected_objects_topic_name, time_to_wait=2
+                        DetectedObjects,
+                        self,
+                        detected_objects_topic_name,
+                        time_to_wait=2,
                     )
                     if not valid:
                         continue
-                    if any([x.name == object_name for x in detected_objects.detected]):
+                    if any(
+                        [
+                            x.name == object_name
+                            for x in detected_objects.detected
+                        ]
+                    ):
                         detected_object = sorted(
                             detected_objects.detected,
                             key=lambda x: x.extra[0],
@@ -738,7 +857,10 @@ class BasicPoseEstimator(Node):
                         )[0]
                         break
             valid, img = wait_for_message(
-                CompressedImage, self, compressed_image_topic_name, time_to_wait=2
+                CompressedImage,
+                self,
+                compressed_image_topic_name,
+                time_to_wait=2,
             )
             if not valid:
                 raise ValueError("failed to get message")
@@ -753,7 +875,9 @@ class BasicPoseEstimator(Node):
                 )
                 x, y = int(cx - w / 2), int(cy - h / 2)
                 cv2_img = cv2_img[
-                    y - PADDING : y + h + PADDING, x - PADDING : x + w + PADDING, :
+                    y - PADDING : y + h + PADDING,
+                    x - PADDING : x + w + PADDING,
+                    :,
                 ]
             cv2.imwrite(
                 os.path.join(
@@ -763,15 +887,21 @@ class BasicPoseEstimator(Node):
                 cv2_img,
             )
             if req.template_name in self.templates:
-                self.get_logger().info("Replacing existing template %s", req.template_name)
+                self.get_logger().info(
+                    "Replacing existing template %s", req.template_name
+                )
             self.register_template(
-                cv2_img, req.template_name, (req.width, req.height), object_name, (0, 0)
+                cv2_img,
+                req.template_name,
+                (req.width, req.height),
+                object_name,
+                (0, 0),
             )
-            res.success=True
+            res.success = True
             return res
         except Exception as e:
-            res.success=False
-            res.error_message=str(e)
+            res.success = False
+            res.error_message = str(e)
             return res
 
     def check_subscribers(self):
@@ -799,11 +929,15 @@ class BasicPoseEstimator(Node):
             if mutex.acquire(blocking=False):
                 try:
                     # print("Saving to: ", camera_frame_id)
-                    if camera_frame_id not in self.latest_msgs or msg.header.stamp > self.latest_msgs[camera_frame_id].header.stamp:
+                    if (
+                        camera_frame_id not in self.latest_msgs
+                        or msg.header.stamp
+                        > self.latest_msgs[camera_frame_id].header.stamp
+                    ):
                         self.latest_msgs[camera_frame_id] = msg
                         # print("Saving recent timestamp: ", msg.header.stamp)
-                    # else: 
-                        # print("Received old timestamp! ", msg.header.stamp)
+                    # else:
+                    # print("Received old timestamp! ", msg.header.stamp)
                 except Exception:
                     print("ee")
                     print(traceback.format_exc())
@@ -811,15 +945,18 @@ class BasicPoseEstimator(Node):
                     # print("Mutex released")
                     mutex.release()
             else:
-                self.get_logger().warn("Dropping message for %s",
-                                       camera_frame_id,
-                                       throttle_duration_sec=1)
+                self.get_logger().warn(
+                    "Dropping message for %s",
+                    camera_frame_id,
+                    throttle_duration_sec=1,
+                )
 
         return callback
 
     def cropped_image_callback(self, debug=True):
-        self.get_logger().info(str(self.active_templates),
-                               throttle_duration_sec=5)
+        self.get_logger().info(
+            str(self.active_templates), throttle_duration_sec=5
+        )
         valid = True
         with mutex:
             images = {}
@@ -852,15 +989,19 @@ class BasicPoseEstimator(Node):
                         self.map_ned_frame,
                         camera_frame_id,
                         # msg.header.stamp,
-                        Time(seconds=0.0), 
+                        Time(seconds=0.0),
                         Duration(seconds=5.0),
                     )
                     camera_stamp_poses[camera_frame_id] = (
                         msg.header.stamp,
                         compose(
-                            attrgetter("x", "y", "z")(camera_tf.transform.translation),
+                            attrgetter("x", "y", "z")(
+                                camera_tf.transform.translation
+                            ),
                             quat2mat(
-                                attrgetter("w", "x", "y", "z")(camera_tf.transform.rotation)
+                                attrgetter("w", "x", "y", "z")(
+                                    camera_tf.transform.rotation
+                                )
                             ),
                             np.ones(3),
                         ),
@@ -877,38 +1018,52 @@ class BasicPoseEstimator(Node):
             # self.get_clock().sleep_for(Duration(seconds=0.01))
             template_name, camera_frame_id = active_template
             if camera_frame_id not in self.pose_estimator.available_cameras:
-                self.get_logger().error(f"Camera {camera_frame_id} not registered")
+                self.get_logger().error(
+                    f"Camera {camera_frame_id} not registered"
+                )
                 continue
-            if camera_frame_id not in images.keys() or images[camera_frame_id] is None:
-                self.get_logger().error(f"Camera {camera_frame_id} image not received, trying to restart",
-                    throttle_duration_sec=1.0)
+            if (
+                camera_frame_id not in images.keys()
+                or images[camera_frame_id] is None
+            ):
+                self.get_logger().error(
+                    f"Camera {camera_frame_id} image not received, trying to restart",
+                    throttle_duration_sec=1.0,
+                )
                 try:
                     print("Registering Camera...")
-                    self.register_camera(self.topics[camera_frame_id], self.pose_estimator.cameras[camera_frame_id])
+                    self.register_camera(
+                        self.topics[camera_frame_id],
+                        self.pose_estimator.cameras[camera_frame_id],
+                    )
                     print("Camera registered!")
-                except Exception as e:
+                except Exception:
                     print(traceback.format_exc())
                 continue
             if template_name not in self.templates:
                 self.get_logger().error(
                     f"Template {template_name} not registered",
-                    throttle_duration_sec=1.0
+                    throttle_duration_sec=1.0,
                 )
                 continue
             if (
                 camera_frame_id not in camera_stamp_poses
                 or len(camera_stamp_poses[camera_frame_id]) == 0
             ):
-                self.get_logger().error(f"No camera poses found for {camera_frame_id}")
+                self.get_logger().error(
+                    f"No camera poses found for {camera_frame_id}"
+                )
                 continue
             _s = camera_stamp_poses[camera_frame_id][0].sec
             _ns = camera_stamp_poses[camera_frame_id][0].nanosec
             if _s == 0 and _ns == 0:
-                self.get_logger().error(f"Camera {camera_frame_id} has no timestamp, skipping")
+                self.get_logger().error(
+                    f"Camera {camera_frame_id} has no timestamp, skipping"
+                )
                 continue
             self.get_logger().debug(
                 f"Processing {template_name}<->{camera_frame_id}: {_s}.{_ns}",
-                throttle_duration_sec=10
+                throttle_duration_sec=10,
             )
             template = self.templates[template_name]
             print("Computing pose...")
@@ -935,10 +1090,12 @@ class BasicPoseEstimator(Node):
 
                 self.get_logger().info(
                     f"YPR: {yaw:.2f}, {pitch:.2f}, {roll:.2f} {template_name} {trans}",
-                    throttle_duration_sec=1
+                    throttle_duration_sec=1,
                 )
 
-                if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([yaw, pitch, roll]) < 1e-10):
+                if np.all(np.abs(trans) < 1e-10) or np.all(
+                    np.abs([yaw, pitch, roll]) < 1e-10
+                ):
                     continue
 
                 self.update_pose(
@@ -950,8 +1107,11 @@ class BasicPoseEstimator(Node):
                     debug,
                 )
 
-    def update_keypoint_matches(self, req: IMPoseEstimatorUpdateKeypointMatches.Request,
-                                res: IMPoseEstimatorUpdateKeypointMatches.Response):
+    def update_keypoint_matches(
+        self,
+        req: IMPoseEstimatorUpdateKeypointMatches.Request,
+        res: IMPoseEstimatorUpdateKeypointMatches.Response,
+    ):
         """
         Update the keypoint matches for a template -> image without performing feature matching
 
@@ -959,43 +1119,48 @@ class BasicPoseEstimator(Node):
         """
         template_name = req.template_name
         camera_frame_id = req.header.frame_id
-        res.success=False
+        res.success = False
         if req.template_name not in self.pose_estimator.available_templates:
-            res.error_message=f"Template {req.template_name} not registered"
+            res.error_message = f"Template {req.template_name} not registered"
             return res
         if camera_frame_id not in self.pose_estimator.cameras:
-            res.error_message=f"Camera {camera_frame_id} not registered"
+            res.error_message = f"Camera {camera_frame_id} not registered"
             return res
         if template_name not in self.templates:
-            res.error_message=f"Template {req.template_name} not registered"
+            res.error_message = f"Template {req.template_name} not registered"
             return res
         try:
             camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame, camera_frame_id, Time(seconds=0.0), Duration(seconds=3.0)
+                self.map_ned_frame,
+                camera_frame_id,
+                Time(seconds=0.0),
+                Duration(seconds=3.0),
             )
             camera_stamp_pose = (
                 req.header.stamp,
                 compose(
                     attrgetter("x", "y", "z")(camera_tf.transform.translation),
                     quat2mat(
-                        attrgetter("w", "x", "y", "z")(camera_tf.transform.rotation)
+                        attrgetter("w", "x", "y", "z")(
+                            camera_tf.transform.rotation
+                        )
                     ),
                     np.ones(3),
                 ),
             )
         except Exception as e:
             self.get_logger().error(str(e))
-            res.error_message=str(e)
+            res.error_message = str(e)
             return res
 
         kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
         kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
         if len(kp1) != len(kp2):
-            res.error_message=f"Invalid keypoints: got different numbers of correspondences: \
+            res.error_message = f"Invalid keypoints: got different numbers of correspondences: \
 {len(kp1)}, {len(kp2)}"
             return res
         if len(kp1) < max(4, self.templates[template_name].min_matches):
-            res.error_message=f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
+            res.error_message = f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
             return res
         rot, trans, _ = self.pose_estimator.compute_pose_from_keypoints(
             template_name,
@@ -1018,7 +1183,9 @@ class BasicPoseEstimator(Node):
         print(f"Estimated trans: {trans}")
 
         if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([y, p, r]) < 1e-10):
-            res.error_message="Failed to compute pose! All values are near zero!"
+            res.error_message = (
+                "Failed to compute pose! All values are near zero!"
+            )
             return res
 
         if rot is not None and trans is not None and trans[2] > 0:
@@ -1031,9 +1198,9 @@ class BasicPoseEstimator(Node):
                 self.debug,
             )
         else:
-            res.error_message="Failed to compute pose!"
+            res.error_message = "Failed to compute pose!"
             return res
-        res.error_message=""
+        res.error_message = ""
         return res
 
     def update_raw_pose(self, rot, trans, frame_id, template: Template, stamp):
@@ -1052,14 +1219,25 @@ class BasicPoseEstimator(Node):
         transform.header.frame_id = frame_id
         transform.child_frame_id = f"{template.name}_raw_optical"
 
-        transform.transform.translation = Vector3(x=trans[0], y=trans[1], z=trans[2])
+        transform.transform.translation = Vector3(
+            x=trans[0], y=trans[1], z=trans[2]
+        )
         q = mat2quat(rot)
-        transform.transform.rotation = Quaternion(x=q[1], y=q[2], z=q[3], w=q[0])
+        transform.transform.rotation = Quaternion(
+            x=q[1], y=q[2], z=q[3], w=q[0]
+        )
 
         self.br.sendTransform(transform)
 
     def update_pose(
-        self, rot, trans, frame_id, template: Template, stamp, camera_pose, debug=False
+        self,
+        rot,
+        trans,
+        frame_id,
+        template: Template,
+        stamp,
+        camera_pose,
+        debug=False,
     ):
         """
         Updates the pose estimate of the template in the world frame
@@ -1073,7 +1251,11 @@ class BasicPoseEstimator(Node):
         """
         template_object = self.template_objects[template.object_name]
         object_trans = np.array(
-            [trans[0] - template.offset[0], trans[1] - template.offset[1], trans[2]]
+            [
+                trans[0] - template.offset[0],
+                trans[1] - template.offset[1],
+                trans[2],
+            ]
         )
         tfm_camera_to_frame = np.eye(4)
         tfm_camera_to_frame[:3, :3] = rot
@@ -1093,11 +1275,15 @@ class BasicPoseEstimator(Node):
         x, y, z = T
 
         pose = np.array([x, y, z, *object_quat])
-        if any(np.isnan(pose)) or any(np.isinf(pose)) or any(np.abs([x, y, z]) > 1000):
+        if (
+            any(np.isnan(pose))
+            or any(np.isinf(pose))
+            or any(np.abs([x, y, z]) > 1000)
+        ):
             self.get_logger().warn(
                 f"Invalid pose estimate for {template.object_name} in {frame_id}: \
 {x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
-                throttle_duration_sec=1
+                throttle_duration_sec=1,
             )
             return
 
@@ -1112,7 +1298,10 @@ class BasicPoseEstimator(Node):
             return
 
         qw, qx, qy, qz = object_quat
-        template_object.poses.loc[len(template_object.poses)] = [stamp.sec, *pose]
+        template_object.poses.loc[len(template_object.poses)] = [
+            stamp.sec,
+            *pose,
+        ]
         if len(template_object.poses) > template_object.min_buffer_size:
             old_rows = template_object.poses.iloc[
                 : len(template_object.poses) - template_object.min_buffer_size
@@ -1167,9 +1356,13 @@ class BasicPoseEstimator(Node):
         transform_stamped.header.frame_id = self.map_ned_frame
         transform_stamped.child_frame_id = template.object_name + "_optical"
 
-        transform_stamped.transform.translation = Vector3(x=fused_pose[0], y=fused_pose[1], z=fused_pose[2])
+        transform_stamped.transform.translation = Vector3(
+            x=fused_pose[0], y=fused_pose[1], z=fused_pose[2]
+        )
         qw, qx, qy, qz = fused_pose[3:]
-        transform_stamped.transform.rotation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        transform_stamped.transform.rotation = Quaternion(
+            x=qx, y=qy, z=qz, w=qw
+        )
 
         self.br.sendTransform(transform_stamped)
         transform_zeroed = transform_stamped
@@ -1183,20 +1376,29 @@ class BasicPoseEstimator(Node):
         )
         qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes="rzyx")
 
-        if template.object_name in self.custom_stabilized_orientation_transform:
+        if (
+            template.object_name
+            in self.custom_stabilized_orientation_transform
+        ):
             qw, qx, qy, qz = self.custom_stabilized_orientation_transform[
                 template.object_name
             ](np.array([qw, qx, qy, qz])).tolist()
 
-        transform_zeroed.transform.rotation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        transform_zeroed.transform.rotation = Quaternion(
+            x=qx, y=qy, z=qz, w=qw
+        )
         transform_zeroed.child_frame_id = template.object_name + "_stabilized"
         self.br.sendTransform(transform_zeroed)
 
         fused_pose_covariance_stamped = PoseWithCovarianceStamped()
         fused_pose_covariance_stamped.header.stamp = stamp
         fused_pose_covariance_stamped.header.frame_id = self.map_ned_frame
-        fused_pose_covariance_stamped.pose.pose.position = Point(x=fused_pose[0], y=fused_pose[1], z=fused_pose[2])
-        fused_pose_covariance_stamped.pose.pose.orientation = transform_zeroed.transform.rotation
+        fused_pose_covariance_stamped.pose.pose.position = Point(
+            x=fused_pose[0], y=fused_pose[1], z=fused_pose[2]
+        )
+        fused_pose_covariance_stamped.pose.pose.orientation = (
+            transform_zeroed.transform.rotation
+        )
         fused_pose_covariance_stamped.pose.covariance = (
             np.diag(variance).flatten().tolist()
         )
@@ -1215,6 +1417,7 @@ class BasicPoseEstimator(Node):
         odometry.pose = fused_pose_covariance_stamped.pose
         self.odom_pub.publish(odometry)
 
+
 def main(args=None):
     logging.basicConfig(level=logging.INFO)
     rclpy.init(args=args)
@@ -1222,12 +1425,14 @@ def main(args=None):
     executor = MultiThreadedExecutor()
     pose_estimator = BasicPoseEstimator()
     executor.add_node(pose_estimator)
-    tf_sub = tf2_ros.TransformListener(pose_estimator.tf_buffer, pose_estimator,
-                                        spin_thread=False)
+    tf2_ros.TransformListener(
+        pose_estimator.tf_buffer, pose_estimator, spin_thread=False
+    )
 
     rclpy.get_default_context().on_shutdown(pose_estimator.teardown)
 
     rclpy.spin(pose_estimator)
+
 
 if __name__ == "__main__":
     main()

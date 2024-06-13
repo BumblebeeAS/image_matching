@@ -6,11 +6,14 @@ from typing import Dict
 import torch
 
 from feature_matcher.keypoints_match_producer import Keypoints
-from feature_matcher.models.SuperGluePretrainedNetwork.models.superglue import SuperGlue
+from feature_matcher.models.SuperGluePretrainedNetwork.models.superglue import (
+    SuperGlue,
+)
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 SuperGlue_dir = os.path.abspath(
-    Path(os.path.realpath(__file__)).parents[0] / "models/SuperGluePretrainedNetwork"
+    Path(os.path.realpath(__file__)).parents[0]
+    / "models/SuperGluePretrainedNetwork"
 )
 
 
@@ -35,7 +38,9 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         logging.info(self.config)
 
         self.device = (
-            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and self.config["cuda"]
+            else "cpu"
         )
 
         assert self.config["weights"] in ["indoor", "outdoor"]
@@ -59,7 +64,9 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         else:
             self.superglue = SuperGlue(self.config).eval().to(self.device)
 
-    def preprocess(self, keypoints1: Keypoints, keypoints2: Keypoints) -> Keypoints:
+    def preprocess(
+        self, keypoints1: Keypoints, keypoints2: Keypoints
+    ) -> Keypoints:
         data = {}
         data["image_size0"] = torch.tensor(
             keypoints1.image_size, device=self.device
@@ -69,10 +76,16 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         ).float()
 
         data["scores0"] = (
-            torch.from_numpy(keypoints1.scores).float().to(self.device).unsqueeze(0)
+            torch.from_numpy(keypoints1.scores)
+            .float()
+            .to(self.device)
+            .unsqueeze(0)
         )
         data["keypoints0"] = (
-            torch.from_numpy(keypoints1.keypoints).float().to(self.device).unsqueeze(0)
+            torch.from_numpy(keypoints1.keypoints)
+            .float()
+            .to(self.device)
+            .unsqueeze(0)
         )
         data["descriptors0"] = (
             torch.from_numpy(keypoints1.descriptors)
@@ -83,10 +96,16 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         )
 
         data["scores1"] = (
-            torch.from_numpy(keypoints2.scores).float().to(self.device).unsqueeze(0)
+            torch.from_numpy(keypoints2.scores)
+            .float()
+            .to(self.device)
+            .unsqueeze(0)
         )
         data["keypoints1"] = (
-            torch.from_numpy(keypoints2.keypoints).float().to(self.device).unsqueeze(0)
+            torch.from_numpy(keypoints2.keypoints)
+            .float()
+            .to(self.device)
+            .unsqueeze(0)
         )
         data["descriptors1"] = (
             torch.from_numpy(keypoints2.descriptors)
@@ -104,7 +123,10 @@ class SuperglueKeypointMatcher(KeypointMatcher):
         return pred
 
     def __call__(
-        self, keypoints1: Keypoints, keypoints2: Keypoints, num_keypoints: int = 20
+        self,
+        keypoints1: Keypoints,
+        keypoints2: Keypoints,
+        num_keypoints: int = 20,
     ) -> Dict:
         preprocessed = self.preprocess(keypoints1, keypoints2)
         preds = self.forward(preprocessed)

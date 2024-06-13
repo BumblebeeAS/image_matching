@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 from time import time
 
@@ -152,14 +150,24 @@ def plot_matches(image0, image1, kpts0, kpts1, scores=None, layout="lr"):
         c = c.tolist()
         if layout == "lr":
             cv2.line(
-                out, (x0, y0), (x1 + W0, y1), color=c, thickness=1, lineType=cv2.LINE_AA
+                out,
+                (x0, y0),
+                (x1 + W0, y1),
+                color=c,
+                thickness=1,
+                lineType=cv2.LINE_AA,
             )
             # display line end-points as circles
             cv2.circle(out, (x0, y0), 2, c, -1, lineType=cv2.LINE_AA)
             cv2.circle(out, (x1 + W0, y1), 2, c, -1, lineType=cv2.LINE_AA)
         elif layout == "ud":
             cv2.line(
-                out, (x0, y0), (x1, y1 + H0), color=c, thickness=1, lineType=cv2.LINE_AA
+                out,
+                (x0, y0),
+                (x1, y1 + H0),
+                color=c,
+                thickness=1,
+                lineType=cv2.LINE_AA,
             )
             # display line end-points as circles
             cv2.circle(out, (x0, y0), 2, c, -1, lineType=cv2.LINE_AA)

@@ -48,7 +48,7 @@ rosrun SuperGlue_ROS matcher_node
 
 *The matcher_node node publishes matching result as string message transformed via json*
 
-*Subsciber example (string -> numpy array) could be found in vo_node node*
+*Subscriber example (string -> numpy array) could be found in vo_node node*
 
 
 Credits:

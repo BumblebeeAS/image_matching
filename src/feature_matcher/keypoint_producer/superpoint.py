@@ -1,22 +1,25 @@
+import logging
 import os
+from pathlib import Path
 import sys
 import threading
-from pathlib import Path
+
 from ament_index_python import get_package_share_directory
-
-SuperGlue_dir = os.path.abspath(
-    Path(os.path.realpath(__file__)).parents[1] / "models/SuperGluePretrainedNetwork"
-)  # noqa E402
-sys.path.insert(0, SuperGlue_dir)  # noqa E402
-import logging
-
 import cv2
 import numpy as np
 import torch
+
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.tools import image2tensor
 from feature_matcher.two_stage_match_producer import KeypointProducer
-from models.superpoint import SuperPoint
+
+SuperGlue_dir = os.path.abspath(
+    Path(os.path.realpath(__file__)).parents[1]
+    / "models/SuperGluePretrainedNetwork"
+)  # noqa E402
+sys.path.insert(0, SuperGlue_dir)  # noqa E402
+
+from models.superpoint import SuperPoint  # noqa E402
 
 
 class SuperPointKeypointProducer(KeypointProducer):
@@ -26,22 +29,31 @@ class SuperPointKeypointProducer(KeypointProducer):
         "keypoint_threshold": 0.005,
         "max_keypoints": -1,
         "remove_borders": 4,
-        "path": os.path.join(get_package_share_directory("image_matching"),
-                             "models", "SuperGluePretrainedNetwork",
-                             "models", "weights", "superpoint_v1.pth"),
+        "path": os.path.join(
+            get_package_share_directory("image_matching"),
+            "models",
+            "SuperGluePretrainedNetwork",
+            "models",
+            "weights",
+            "superpoint_v1.pth",
+        ),
         "cuda": True,
     }
 
     def __init__(self, config={}):
         self.debug = config.get("debug", False)
-        logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.INFO
+        )
 
         self.config = {**SuperPointKeypointProducer.default_config, **config}
         logging.info("SuperPoint detector config: ")
         logging.info(self.config)
 
         self.device = (
-            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and self.config["cuda"]
+            else "cpu"
         )
         path_ = self.config["path"]
         parent_dir = os.path.dirname(path_)
@@ -54,6 +66,7 @@ class SuperPointKeypointProducer(KeypointProducer):
         else:
             self.superpoint = SuperPoint(self.config).eval().to(self.device)
         self.lock = threading.Lock()
+
     def preprocess(self, image) -> torch.Tensor:
         try:
             if image.shape[2] == 3:

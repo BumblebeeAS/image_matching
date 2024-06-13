@@ -4,13 +4,18 @@ import traceback
 from typing import List
 
 import cv2
+from cv_bridge import CvBridge
+from cv_bridge import CvBridgeError
+from feature_matcher.keypoints_match_producer import (
+    get_keypoints_match_producer,
+)
+from pose_estimator.PinholeCamera import PINHOLE_CAMERAS
+from pose_estimator.PinholeCamera import PinholeCamera
 import rospy
-from cv_bridge import CvBridge, CvBridgeError
 from scipy.spatial.transform import Rotation
-from sensor_msgs.msg import CompressedImage, Imu, CameraInfo
-
-from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
-from pose_estimator.PinholeCamera import PINHOLE_CAMERAS, PinholeCamera
+from sensor_msgs.msg import CameraInfo
+from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import Imu
 from utils.logging import BasicLogger
 
 
@@ -33,7 +38,6 @@ class BasicVisualOdometry:
         camera_info=None,
         debug=True,
     ):
-
         self.logger = BasicLogger("BasicVisualOdometry", debug=debug)
 
         self.bridge = CvBridge()
@@ -96,7 +100,9 @@ class BasicVisualOdometry:
         start_time = rospy.get_time()
         try:
             # Many keypoints are needed for accurate pose estimation
-            keypoints1, keypoints2 = self.image_match_producer.compute_matches(5000)
+            keypoints1, keypoints2 = self.image_match_producer.compute_matches(
+                5000
+            )
         except Exception as e:
             self.logger.error(f"Could not compute matches: {e}")
             self.logger.error(traceback.format_exc())
@@ -129,7 +135,9 @@ class BasicVisualOdometry:
             self.logger.error("Could not compute essential matrix. Got None")
             return
         end_time = rospy.get_time()
-        self.logger.info(f"Time to compute essential matrix: {end_time - start_time}")
+        self.logger.info(
+            f"Time to compute essential matrix: {end_time - start_time}"
+        )
 
         # Recover pose from Essential Matrix
         start_time = rospy.get_time()
@@ -169,7 +177,9 @@ class BasicVisualOdometry:
         imu_msg.angular_velocity.y = pitch_rad / time_diff
         imu_msg.angular_velocity.z = yaw_rad / time_diff
         end_time = rospy.get_time()
-        self.logger.info(f"Time to produce IMU message: {end_time - start_time}")
+        self.logger.info(
+            f"Time to produce IMU message: {end_time - start_time}"
+        )
 
         # Publish IMU message
         # print(imu_msg)

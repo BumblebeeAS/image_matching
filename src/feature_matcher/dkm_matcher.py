@@ -1,22 +1,21 @@
 import os
-import sys
 from pathlib import Path
+import sys
 from typing import Optional
 
-from typing_extensions import override
+import cv2
+import torch
+
+from feature_matcher.keypoints import Keypoints
+from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
 
 DKM_dir = os.path.abspath(
     Path(os.path.realpath(__file__)).parents[0] / "models/DKM"
 )  # noqa E402
 sys.path.append(DKM_dir)  # noqa E402
 
-from dkm import DKMv3_outdoor, DKMv3_indoor
-from dkm.utils import tensor_to_pil, numpy_to_pil
-import torch
-import cv2
-
-from feature_matcher.keypoints import Keypoints
-from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
+from dkm import DKMv3_outdoor  # noqa E402
+from dkm.utils import numpy_to_pil  # noqa E402
 
 
 class DKMv3MatchProducer(KeypointsMatchProducer):
@@ -26,7 +25,9 @@ class DKMv3MatchProducer(KeypointsMatchProducer):
         self.config = config
         self.config["cuda"] = True
         self.device = torch.device(
-            "cuda" if torch.cuda.is_available() and config.get("cuda", False) else "cpu"
+            "cuda"
+            if torch.cuda.is_available() and config.get("cuda", False)
+            else "cpu"
         )
 
         print("Loading DKM...")
@@ -45,7 +46,9 @@ class DKMv3MatchProducer(KeypointsMatchProducer):
         img = cv2.resize(img, self.img_size, interpolation=cv2.INTER_AREA)
         return numpy_to_pil(img), original_size
 
-    def compute_matches(self, num_keypoints: int = 20, template: Optional[str] = None):
+    def compute_matches(
+        self, num_keypoints: int = 20, template: Optional[str] = None
+    ):
         img0, img1 = self.get_images(template)
 
         if img0 is None or img1 is None:
@@ -54,10 +57,14 @@ class DKMv3MatchProducer(KeypointsMatchProducer):
         template_img, template_size = img0.results
         query_img, query_size = img1.results
 
-        warp, certainty = self.model.match(template_img, query_img, device=self.device)
+        warp, certainty = self.model.match(
+            template_img, query_img, device=self.device
+        )
 
         # samples from the warp using the certainty
-        matches, certainty = self.model.sample(warp, certainty, num=5 * num_keypoints)
+        matches, certainty = self.model.sample(
+            warp, certainty, num=5 * num_keypoints
+        )
 
         # convenience function to convert normalized matches to pixel coordinates
         kpts_A, kpts_B = self.model.to_pixel_coordinates(

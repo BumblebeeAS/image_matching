@@ -2,11 +2,12 @@ import threading
 
 import cv2
 import kornia
+from lightglue import DISK
 import numpy as np
 import torch
+
 from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
-from lightglue import DISK
 
 
 class DISKKeypointProducer(KeypointProducer):
@@ -37,8 +38,12 @@ class DISKKeypointProducer(KeypointProducer):
                 res_dict = self.disk.forward(img_dict)
 
             keypoints = np.squeeze(res_dict["keypoints"].cpu().numpy(), axis=0)
-            descriptors = np.squeeze(res_dict["descriptors"].cpu().numpy(), axis=0)
-            scores = np.squeeze(res_dict["keypoint_scores"].cpu().numpy(), axis=0)
+            descriptors = np.squeeze(
+                res_dict["descriptors"].cpu().numpy(), axis=0
+            )
+            scores = np.squeeze(
+                res_dict["keypoint_scores"].cpu().numpy(), axis=0
+            )
 
         return Keypoints(
             image.shape[:2],
