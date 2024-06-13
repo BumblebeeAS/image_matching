@@ -20,11 +20,15 @@ from feature_matcher.keypoints_match_producer import Keypoints
 from feature_matcher.two_stage_match_producer import KeypointProducer
 from feature_matcher.tools import image2tensor
 
+XFEAT_DIR = os.path.abspath(
+    Path(os.path.realpath(__file__)).parents[1]
+    / "models/accelerated_features"
+)  # noqa E402
+
+
 class XFeatKeypointProducer(KeypointProducer):
     default_config = {
-        "weights": os.path.join(get_package_share_directory("image_matching"),
-                                "models", "accelerated_features",
-                                "weights", "xfeat.pt"),
+        "weights": os.path.join(XFEAT_DIR, "weights", "xfeat.pt"),
         "top_k": 4096,
         "cuda": True
     }

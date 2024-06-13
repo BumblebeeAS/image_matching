@@ -9,6 +9,10 @@ import cv2
 from feature_matcher.tools import plot_matches
 
 test_folder_path = os.path.join(get_package_share_directory("image_matching"), "test_images")
+template_path = os.path.abspath(
+    Path(os.path.realpath(__file__)).parents[1]
+    / "benchmark"
+)  # noqa E402
 
 def process_image(image_path):
     image = cv2.imread(image_path)
@@ -32,7 +36,7 @@ def main():
     for class_name in os.listdir(test_folder_path):
         class_folder_path = os.path.join(test_folder_path, class_name)
         
-        template_image_path = os.path.join(get_package_share_directory("image_matching"), "benchmark", f"{class_name}.png")
+        template_image_path = os.path.join(template_path, f"{class_name}.png")
         template_image = cv2.imread(template_image_path)
         
         if template_image is None:
