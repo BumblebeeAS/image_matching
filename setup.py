@@ -61,6 +61,8 @@ setup(
         "console_scripts": [
             "detector = image_matching.detector:main",
             "pose_estimator = image_matching.pose_estimator_node:main",
+            'test_xfeat = image_matching.test_xfeat:main',
+            'xfeat_output = image_matching.xfeat_output:main',
         ],
     },
 )

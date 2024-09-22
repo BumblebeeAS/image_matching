@@ -30,7 +30,10 @@ def create_show_image(window_name="image"):
 
     def show_image(img):
         cv2.imshow(window_name, img)
-        cv2.waitKey(1)
+        key = cv2.waitKey(0)
+        if key == 27:
+            cv2.destroyAllWindows()
+
 
     return show_image
 
