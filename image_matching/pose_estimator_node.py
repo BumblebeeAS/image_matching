@@ -41,6 +41,7 @@ from pose_estimator.pose_weighted_average import get_kmeans_center
 
 # import rospy
 import rclpy
+# from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
@@ -67,7 +68,7 @@ mutex = threading.Lock()
 
 @dataclass
 class Image:
-    img: cv2.Mat
+    img: np.ndarray
     descriptor: Any
     timestamp: float
     pose: PoseStamped
@@ -261,6 +262,12 @@ class BasicPoseEstimator(Node):
         # debug,
         # map_ned_frame,
         # rospy.init_node("pose_estimator_dev", anonymous=False, log_level=rospy.INFO)
+
+        # self.callback_group = MutuallyExclusiveCallbackGroup()
+
+        self.timer = self.create_timer(0.05, self.cropped_image_callback)
+
+
         self.declare_parameter("debug", rclpy.Parameter.Type.BOOL)
         self.declare_parameter(
             "front_camera_topic", rclpy.Parameter.Type.STRING
@@ -430,6 +437,7 @@ class BasicPoseEstimator(Node):
             "buoy_seg": self.filter_forward_facing,
             "gate_seg": self.filter_forward_facing,
             "torpedo_seg": self.filter_forward_facing,
+            "robotx"
             "bin_abydos_1_part-0": self.filter_bottom_facing,
             "bin_abydos_1_part-1": self.filter_bottom_facing,
             "bin_abydos_1_part-2": self.filter_bottom_facing,
@@ -633,7 +641,6 @@ class BasicPoseEstimator(Node):
                 ),
             )
 
-        self.create_timer(0.05, self.cropped_image_callback)
 
     def teardown(self):
         for sub in self.subscribers.values():
@@ -923,24 +930,24 @@ class BasicPoseEstimator(Node):
 
     def msg_callback(self, camera_frame_id):
         def callback(msg):
-            # print(f"cb: {self.active_templates}")
+            self.get_logger().info(f"cb: {self.active_templates}")
             if len(self.active_templates) == 0:
                 return
             if mutex.acquire(blocking=False):
                 try:
-                    # print("Saving to: ", camera_frame_id)
+                    self.get_logger().info(f"Saving to: {camera_frame_id}")
                     if (
                         camera_frame_id not in self.latest_msgs
-                        or msg.header.stamp
-                        > self.latest_msgs[camera_frame_id].header.stamp
+                        or Time.from_msg(msg.header.stamp)
+                        > Time.from_msg(self.latest_msgs[camera_frame_id].header.stamp)
                     ):
                         self.latest_msgs[camera_frame_id] = msg
-                        # print("Saving recent timestamp: ", msg.header.stamp)
+                        self.get_logger().info(f"Saving recent timestamp: {msg.header.stamp}")
                     # else:
                     # print("Received old timestamp! ", msg.header.stamp)
                 except Exception:
-                    print("ee")
-                    print(traceback.format_exc())
+                    # print("ee")
+                    self.get_logger().info(str(traceback.format_exc()))
                 finally:
                     # print("Mutex released")
                     mutex.release()
@@ -955,7 +962,7 @@ class BasicPoseEstimator(Node):
 
     def cropped_image_callback(self, debug=True):
         self.get_logger().info(
-            str(self.active_templates), throttle_duration_sec=5
+            str(self.active_templates)
         )
         valid = True
         with mutex:
@@ -1031,14 +1038,14 @@ class BasicPoseEstimator(Node):
                     throttle_duration_sec=1.0,
                 )
                 try:
-                    print("Registering Camera...")
+                    self.get_logger().info(f"Registering Camera...")
                     self.register_camera(
                         self.topics[camera_frame_id],
                         self.pose_estimator.cameras[camera_frame_id],
                     )
-                    print("Camera registered!")
+                    self.get_logger().info(f"Camera registered!")
                 except Exception:
-                    print(traceback.format_exc())
+                    self.get_logger().info(traceback.format_exc())
                 continue
             if template_name not in self.templates:
                 self.get_logger().error(
@@ -1066,7 +1073,7 @@ class BasicPoseEstimator(Node):
                 throttle_duration_sec=10,
             )
             template = self.templates[template_name]
-            print("Computing pose...")
+            self.get_logger().info("Computing pose...")
             rot, trans = self.pose_estimator.compute_pose(
                 images[camera_frame_id],
                 template_name,
@@ -1079,9 +1086,9 @@ class BasicPoseEstimator(Node):
                 max_reprojection_error=template.reprojection_error_threshold,
                 min_matches=template.min_matches,
             )
-            print("Pose computed")
-            print("Rot: ", rot)
-            print("Trans: ", trans)
+            self.get_logger().info("Pose computed")
+            self.get_logger().info(f"Rot: {rot}")
+            self.get_logger().info(f"Trans: {trans}")
             if rot is not None and trans is not None and trans[2] > 0:
                 yaw, pitch, roll = mat2euler(rot, axes="szyx")
                 yaw = np.rad2deg(yaw)
