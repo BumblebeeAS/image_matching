@@ -81,7 +81,7 @@ def generate_launch_description():
                 "base_link_frame", default_value="auv4/base_link"
             ),
             DeclareLaunchArgument("odom_ned_frame", default_value="map_ned"),
-            DeclareLaunchArgument("matcher", default_value="sift_flann"),
+            DeclareLaunchArgument("matcher", default_value="xfeat"), # sift_flann, xfeat
             DeclareLaunchArgument("use_sim_time", default_value="True"),
             OpaqueFunction(function=launch_setup),
         ]

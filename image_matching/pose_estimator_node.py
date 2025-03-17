@@ -203,6 +203,10 @@ def get_matcher(matcher):
         image_match_producer = get_keypoints_match_producer(
             "dalf", "bf", {"debug": True}, {"debug": True}
         )
+    elif matcher == "xfeat":
+        image_match_producer = get_keypoints_match_producer(
+            "xfeat", "xfeat", {"debug": True}, {"debug": True}
+        )
     else:
         raise NotImplementedError(f"Matcher {matcher} unimplemented!")
     return image_match_producer
@@ -345,7 +349,7 @@ class BasicPoseEstimator(Node):
         #     .string_value
         # )
 
-        matcher = (
+        self.matcher_name = (
             self.get_parameter_or("matcher", "sift_flann")
             .get_parameter_value()
             .string_value
@@ -367,8 +371,8 @@ class BasicPoseEstimator(Node):
         # image_match_producers["dalf_bf"] = get_matcher("dalf_bf")
         # image_match_producers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
         # image_match_producers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
-        if matcher not in image_match_producers:
-            image_match_producers[matcher] = get_matcher(matcher)
+        if self.matcher_name not in image_match_producers:
+            image_match_producers[self.matcher_name] = get_matcher(self.matcher_name)
 
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -765,12 +769,12 @@ class BasicPoseEstimator(Node):
         )
 
     @staticmethod
-    def create_default_template(name, object_name=None, offset=(0, 0)):
+    def create_default_template(name, matcher_name="sift_flann",object_name=None, offset=(0, 0)):
         if object_name is None:
             object_name = name
         return Template(
             name,
-            "sift_flann",
+            matcher_name,# "sift_flann",
             4,  # min_matches
             2,  # reprojection_error_threshold
             object_name,
@@ -818,7 +822,7 @@ class BasicPoseEstimator(Node):
                 object_name
             )
         self.templates[name] = BasicPoseEstimator.create_default_template(
-            name, object_name, offset
+            name, self.matcher_name , object_name, offset
         )
         self.get_logger().error(f"registered template {name}")
 
@@ -833,6 +837,11 @@ class BasicPoseEstimator(Node):
 
         return img_eq
 
+    """
+    This function allows us to snap/create new template images for objects of interest
+    using conventional ML. It is a service callback. Does not update the templates.json
+    Please manually update the templates.json file to use the newly taken image.
+    """
     def register_template_cb(
         self, req: IMPoseEstimatorRegisterTemplate.Request, res
     ):
@@ -922,13 +931,13 @@ class BasicPoseEstimator(Node):
             self.subscribers[camera_topic] = self.create_subscription(
                 CompressedImage,
                 camera_topic,
-                self.msg_callback(camera.frame_id),
+                self.img_msg_callback(camera.frame_id),
                 QoSProfile(depth=10),
             )
             self.pose_estimator.register_camera(camera)
             self.topics[camera.frame_id] = camera_topic
 
-    def msg_callback(self, camera_frame_id):
+    def img_msg_callback(self, camera_frame_id):
         def callback(msg):
             self.get_logger().info(f"cb: {self.active_templates}")
             if len(self.active_templates) == 0:

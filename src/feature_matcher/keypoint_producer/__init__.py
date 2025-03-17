@@ -7,6 +7,7 @@ __all__ = [
     "KeyAffHardKeypointProducer",
     "DISKKeypointProducer",
     "DALFKeypointProducer",
+    "XFeatKeypointProducer",
 ]
 from feature_matcher.keypoint_producer.fast import FastKeypointProducer
 from feature_matcher.keypoint_producer.orb import OrbKeypointProducer
@@ -39,5 +40,10 @@ except ImportError as e:
 
 try:
     from feature_matcher.keypoint_producer.dalf import DALFKeypointProducer
+except ImportError as e:
+    print(e)
+
+try:
+    from feature_matcher.keypoint_producer.xfeat import XFeatKeypointProducer
 except ImportError as e:
     print(e)
