@@ -314,18 +314,32 @@ if __name__ == "__main__":
     pose_estimator_1 = PoseEstimator(image_match_producer)
     camera = PinholeCamera(
         "auv4/front_cam",
+        1024,
         768,
-        492,
-        407.0646129842357,
-        407.0646129842357,
-        384.5,
-        246.5,
+        1104.9647584119537,
+        1103.3380651945358,
+        1031.4081561220519,
+        752.7821761752537,
         0,
         0,
         0,
         0,
         0,
     )
+    # camera = PinholeCamera(
+    #     "auv4/front_cam",
+    #     768,
+    #     492,
+    #     407.0646129842357,
+    #     407.0646129842357,
+    #     384.5,
+    #     246.5,
+    #     0,
+    #     0,
+    #     0,
+    #     0,
+    #     0,
+    # )
     pose_estimator_1.register_camera(camera)
 
     pose_estimator_1.visualize_callbacks.append(

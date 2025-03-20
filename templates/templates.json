@@ -13,14 +13,14 @@
     "_chevron_red.png": [0.1524, 0.2286],
     "_2023_torpedo1.png": [1.2192, 1.2192],
     "_2023_torpedo2.png": [1.2192, 1.2192],
-    "_2023_torpedo_big.png": {
+    "2023_torpedo_big.png": {
         "object_name": "2023_torpedo_big",
         "dimensions": [1.19396645833, 0.63297157986],
         "regions": {
             "hole": [0.3, 0, 0.7, 0.8]
         }
     },
-    "_2023_torpedo_small.png": {
+    "2023_torpedo_small.png": {
         "object_name": "2023_torpedo_small",
         "dimensions": [1.19396645833, 0.63297157986],
         "regions": {

@@ -600,16 +600,24 @@ class BasicPoseEstimator(Node):
             self.get_logger().warn(
                 f"Front camera not found! Using default {e}"
             )
+                    # "auv4/front_cam_optical",
+                    # 1024,
+                    # 768,
+                    # 452.3013610839844,
+                    # 482.3131408691406,
+                    # 526.00118954543,
+                    # 396.61607947004813,
+
             self.register_camera(
                 front_camera_topic,
                 PinholeCamera(
                     "auv4/front_cam_optical",
                     1024,
                     768,
-                    452.3013610839844,
-                    482.3131408691406,
-                    526.00118954543,
-                    396.61607947004813,
+                    1104.9647584119537,
+                    1103.3380651945358,
+                    1031.4081561220519,
+                    752.7821761752537,
                 ),
             )
         try:

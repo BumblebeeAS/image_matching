@@ -321,7 +321,7 @@ def get_keypoints_match_producer(
         (None, "coarse_loftr"),
         (None, "loftr_ts"),
         (None, "dkm"),
-        {"xfeat", "xfeat"}
+        ("xfeat", "xfeat")
     ]
     if (extractor, matcher) not in valid_combinations:
         raise ValueError(

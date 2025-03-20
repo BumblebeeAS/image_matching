@@ -58,6 +58,8 @@ class XFeatKeypointProducer(KeypointProducer):
 
         self.config.pop("cuda")
         self.config.pop("device")
+        if "debug" in self.config:
+            self.config.pop("debug")
 
         self.model = XFeat(**self.config)
         self.lock = threading.Lock()

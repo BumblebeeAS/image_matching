@@ -55,21 +55,21 @@ def generate_launch_description():
                 "front_camera_topic",
                 #   default_value='/auv4/front_cam/image_rect_color/bright/compressed',
                 #   default_value='/wamv/sensors/cameras/left_cam_sensor/optical/image_rect_color/compressed',
-                default_value="/wamv/sensors/cameras/mid_cam_sensor/optical/image_rect_color/compressed",
+                default_value="/auv4/front_cam/color/image_rect/compressed",
                 description="Front cam topic",
             ),
             DeclareLaunchArgument(
                 "front_camera_info_topic",
-                default_value="/wamv/sensors/cameras/mid_cam_sensor/optical/camera_info",
+                default_value="/auv4/front_cam/color/camera_info",
                 description="Front cam topic",
             ),
             DeclareLaunchArgument(
                 "bottom_camera_topic",
-                default_value="/auv4/bot_cam/image_rect_color/bright/compressed",
+                default_value="/auv4/bot_cam/color/image_rect/compressed",
             ),
             DeclareLaunchArgument(
                 "bottom_camera_info_topic",
-                default_value="/auv4/bot_cam/camera_info",
+                default_value="/auv4/bot_cam/color/camera_info",
                 description="Bottom cam topic",
             ),
             DeclareLaunchArgument(
@@ -82,7 +82,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("odom_ned_frame", default_value="map_ned"),
             DeclareLaunchArgument("matcher", default_value="xfeat"), # sift_flann, xfeat
-            DeclareLaunchArgument("use_sim_time", default_value="True"),
+            DeclareLaunchArgument("use_sim_time", default_value="False"),
             OpaqueFunction(function=launch_setup),
         ]
     )
