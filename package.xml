@@ -7,7 +7,7 @@
   <maintainer email="koh.benjamin@u.nus.edu">b3nguin</maintainer>
   <license>MIT</license>
 
-  <exec_depend>python-transforms3d-pip</exec_depend>
+  <exec_depend>python3-transforms3d</exec_depend>
 
   <depend>bb_msgs</depend>
   <depend>image_transport</depend>
