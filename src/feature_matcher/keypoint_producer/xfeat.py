@@ -67,14 +67,17 @@ class XFeatKeypointProducer(KeypointProducer):
     # Up to us to change this, XFeat can accept RGB or grayscale
     # XFeat has own parse input function
     def preprocess(self, image) -> np.ndarray:
-        try:
-            if image.shape[2] == 3:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            elif image.shape[2] == 1:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-        except Exception as e:
-            logging.error(e)
-            pass
+        logging.debug(f"Shape of image is {image.shape}")
+        
+        # Try with default BGR
+        # try:
+        #     if image.shape[2] == 3:
+        #         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        #     elif image.shape[2] == 1:
+        #         image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        # except Exception as e:
+        #     logging.error(e)
+        #     pass
 
         logging.debug("Detecting keypoints with XFeat")
         return image2tensor(image, self.device)
