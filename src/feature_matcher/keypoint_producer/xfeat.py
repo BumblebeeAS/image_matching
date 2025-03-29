@@ -101,5 +101,8 @@ class XFeatKeypointProducer(KeypointProducer):
             pred = self.model.detectAndCompute(input)[0]
             # pred contains keypoints, scores and descriptors
         return Keypoints(
-            image.shape[:2], pred["keypoints"], pred["descriptors"], pred["scores"]
+            image.shape[:2],
+            pred["keypoints"].cpu().numpy(),
+            pred["descriptors"].cpu().numpy(),
+            pred["scores"].cpu().numpy(),
         )
