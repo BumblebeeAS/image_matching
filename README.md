@@ -15,41 +15,25 @@ You can find **the utilization of this module** in [this](https://github.com/Kop
  - OpenCV
  - CUDA (highly recommended)
 
-## Usage
+## Quickstart
 
-Download and build:
-```sh
-mkdir catkin_ws
-cd catkin_ws
-mkdir src
-cd src
-git clone --recursive https://github.com/KopanevPavel/SuperGlue_ROS
-cd ..
-catkin build
-source devel/setup.bash
+In one terminal:
+
+```bash
+source install/setup.bash
+ros2 launch image_matching pose_estimator.launch.py
 ```
 
-Add to python path:
-```sh
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS/models/SuperGluePretrainedNetwork
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS/models/SuperPointPretrainedNetwork
+In another terminal:
+
+```bash
+source install/setup.bash
+ros2 service call /impose_toggle_template bb_msgs/srv/IMPoseEstimatorToggleTemplate "template_name: '2023_torpedo_big'
+camera_frame_id: 'auv4/bot_cam_optical'
+enabled: true"
 ```
 
-Run SuperPoint detector:
-```sh
-rosrun SuperGlue_ROS detector_node
-```
-
-Run SuperGlue matcher:
-```sh
-rosrun SuperGlue_ROS matcher_node
-```
-
-*The matcher_node node publishes matching result as string message transformed via json*
-
-*Subscriber example (string -> numpy array) could be found in vo_node node*
-
+See `/impose_dev_vis/compressed` for visualization.
 
 Credits:
 https://github.com/Shiaoming/Python-VO
