@@ -1,47 +1,39 @@
 #!/usr/bin/env python3
 
 import copy
-from dataclasses import dataclass
 import glob
 import json
 import logging
-from operator import attrgetter
 import os
-from pathlib import Path
 import threading
 import traceback
-from typing import Any, Callable, Dict, Optional, Set, Tuple
+from dataclasses import dataclass
+from operator import attrgetter
+from pathlib import Path
+from typing import Any, Dict, Optional, Set, Tuple
 
-from ament_index_python import get_package_share_directory
-from bb_msgs.msg import DetectedObjects
-from bb_msgs.srv import IMPoseEstimatorConfig
-from bb_msgs.srv import IMPoseEstimatorGetStatus
-from bb_msgs.srv import IMPoseEstimatorGetTemplates
-from bb_msgs.srv import IMPoseEstimatorRegisterTemplate
-from bb_msgs.srv import IMPoseEstimatorToggleTemplate
-from bb_msgs.srv import IMPoseEstimatorUpdateKeypointMatches
 import cv2
-from cv_bridge import CvBridge
-from cv_bridge import CvBridgeError
-from feature_matcher.keypoints_match_producer import (
-    get_keypoints_match_producer,
-)
-from geometry_msgs.msg import Point
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import PoseWithCovarianceStamped
-from geometry_msgs.msg import Quaternion
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import Vector3
-from nav_msgs.msg import Odometry
 import numpy as np
 import pandas as pd
-from pose_estimator.PinholeCamera import PinholeCamera
-from pose_estimator.pose_estimator import PoseEstimator
-from pose_estimator.pose_weighted_average import get_kmeans_center
-
-# import rospy
 import rclpy
-# from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+import tf2_ros
+from ament_index_python import get_package_share_directory
+from bb_msgs.srv import (
+    IMPoseEstimatorConfig,
+    IMPoseEstimatorGetStatus,
+    IMPoseEstimatorGetTemplates,
+    IMPoseEstimatorToggleTemplate,
+)
+from cv_bridge import CvBridge, CvBridgeError
+from geometry_msgs.msg import (
+    Point,
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    Quaternion,
+    TransformStamped,
+    Vector3,
+)
+from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.impl.implementation_singleton import rclpy_implementation as _rclpy
@@ -50,18 +42,15 @@ from rclpy.qos import QoSProfile
 from rclpy.signals import SignalHandlerGuardCondition
 from rclpy.time import Time
 from rclpy.utilities import timeout_sec_to_nsec
-from sensor_msgs.msg import CameraInfo
-from sensor_msgs.msg import CompressedImage
-import tf2_ros
-from transforms3d.affines import compose
-from transforms3d.affines import decompose
-from transforms3d.euler import euler2quat
-from transforms3d.euler import mat2euler
-from transforms3d.euler import quat2euler
-from transforms3d.quaternions import mat2quat
-from transforms3d.quaternions import qinverse
-from transforms3d.quaternions import qmult
-from transforms3d.quaternions import quat2mat
+from sensor_msgs.msg import CameraInfo, CompressedImage
+from transforms3d.affines import compose, decompose
+from transforms3d.euler import euler2quat, mat2euler, quat2euler
+from transforms3d.quaternions import mat2quat, quat2mat
+
+from feature_matcher.keypoints_match_producer import get_keypoints_match_producer
+from pose_estimator.PinholeCamera import PinholeCamera
+from pose_estimator.pose_estimator import PoseEstimator
+from pose_estimator.pose_weighted_average import get_kmeans_center
 
 mutex = threading.Lock()
 
