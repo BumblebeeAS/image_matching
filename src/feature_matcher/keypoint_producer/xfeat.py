@@ -1,28 +1,16 @@
+import logging
 import os
-import sys
 import threading
 from pathlib import Path
-from ament_index_python import get_package_share_directory
 
-XFEAT_DIR = os.path.abspath(
-    Path(os.path.realpath(__file__)).parents[0] / "models/accelerated_features"
-)
+from cv2.typing import MatLike
 
-sys.path.insert(0, XFEAT_DIR)
-
-import logging
-
-import cv2
-import numpy as np
-import torch
-from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.keypoints_match_producer import Keypoints
+from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.two_stage_match_producer import KeypointProducer
-from feature_matcher.tools import image2tensor
 
 XFEAT_DIR = os.path.abspath(
-    Path(os.path.realpath(__file__)).parents[1]
-    / "models/accelerated_features"
+    Path(os.path.realpath(__file__)).parents[1] / "models/accelerated_features"
 )  # noqa E402
 
 
@@ -30,10 +18,9 @@ class XFeatKeypointProducer(KeypointProducer):
     default_config = {
         "weights": os.path.join(XFEAT_DIR, "weights", "xfeat.pt"),
         "top_k": 4096,
-        "cuda": True
     }
 
-    def __init__(self, config={}) -> None:
+    def __init__(self, config: dict = {}) -> None:
         self.debug = config.get("debug", False)
         logging.basicConfig(level=logging.DEBUG if self.debug else logging.INFO)
 
@@ -42,47 +29,18 @@ class XFeatKeypointProducer(KeypointProducer):
             **config,
         }
 
-        self.device = (
-            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
-        )
-
-        self.config = {
-            **self.config,
-            "device": self.device,
-        }
-
         logging.info("XFeat dectector config: ")
         logging.info(self.config)
-
         logging.info("Creating XFeat detector...")
 
-        self.config.pop("cuda")
-        self.config.pop("device")
         if "debug" in self.config:
             self.config.pop("debug")
 
         self.model = XFeat(**self.config)
+        self.device = self.model.dev
         self.lock = threading.Lock()
 
-    # Up to us to change this, XFeat can accept RGB or grayscale
-    # XFeat has own parse input function
-    def preprocess(self, image) -> np.ndarray:
-        logging.debug(f"Shape of image is {image.shape}")
-        
-        # Try with default BGR
-        # try:
-        #     if image.shape[2] == 3:
-        #         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        #     elif image.shape[2] == 1:
-        #         image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-        # except Exception as e:
-        #     logging.error(e)
-        #     pass
-
-        logging.debug("Detecting keypoints with XFeat")
-        return image2tensor(image, self.device)
-    
-    def __call__(self, image: np.ndarray) -> Keypoints:
+    def __call__(self, image: MatLike) -> Keypoints:
         """
         Find keypoints within image using XFeat
 
@@ -94,12 +52,10 @@ class XFeatKeypointProducer(KeypointProducer):
 
         Consider adding option to use detectAndComputeDense
         """
-        # preprocessed = self.preprocess(image)
-        input = self.model.parse_input(image)
         with self.lock:
             # XFeat handles additional preprocessing, such as conversion into tensor
-            pred = self.model.detectAndCompute(input)[0]
-            # pred contains keypoints, scores and descriptors
+            pred = self.model.detectAndCompute(image)[0]
+
         return Keypoints(
             image.shape[:2],
             pred["keypoints"].cpu().numpy(),

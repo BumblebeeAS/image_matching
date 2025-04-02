@@ -18,7 +18,6 @@ class XFeatKeypointMatcher(KeypointMatcher):
     default_config = {
         "weights": os.path.join(XFEAT_DIR, "weights", "xfeat.pt"),
         "top_k": 4096,
-        "cuda": True,
     }
 
     def __init__(self, config=None) -> None:
@@ -30,11 +29,8 @@ class XFeatKeypointMatcher(KeypointMatcher):
         logging.info("XFeat matcher config")
         logging.info("self.config")
 
-        self.device = (
-            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
-        )
-
         self.model = XFeat(self.config["weights"], self.config["top_k"])
+        self.device = self.model.dev
 
         self.lock = threading.Lock()
 
