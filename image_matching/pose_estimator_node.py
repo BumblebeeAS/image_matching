@@ -132,13 +132,6 @@ def wait_for_message(msg_type, node: "Node", topic: str, time_to_wait=-1):
     return (False, None)
 
 
-def transform_buoy_stabilized(quat):
-    q1 = euler2quat(np.pi / 2, 0, np.pi / 2, "rzyx")
-    qw, qx, qy, qz = qmult(qinverse(q1), quat)
-    r, p, y = quat2euler([qw, qx, qy, qz], "rxyz")
-    return qmult(q1, euler2quat(r, p, 0, "rxyz"))
-
-
 def get_matcher(matcher):
     if matcher == "coarse_loftr":
         image_match_producer = get_keypoints_match_producer(
@@ -367,12 +360,7 @@ class BasicPoseEstimator(Node):
 
         # define image_matchers
         image_match_producers = {}
-        image_match_producers["sift_flann"] = get_matcher("sift_flann")
-        # image_match_producers["dalf_bf"] = get_matcher("dalf_bf")
-        # image_match_producers["keyaffhard_flann"] = get_matcher("keyaffhard_flann")
-        # image_match_producers["superpoint_lightglue"] = get_matcher("superpoint_lightglue") # specify in launch file
-        if self.matcher_name not in image_match_producers:
-            image_match_producers[self.matcher_name] = get_matcher(self.matcher_name)
+        image_match_producers[self.matcher_name] = get_matcher(self.matcher_name)
 
         self.latest_msgs: Dict[str, cv2.Mat] = {}
         self.bridge = CvBridge()
@@ -404,20 +392,10 @@ class BasicPoseEstimator(Node):
             Odometry, "impose_estimates", qos_profile=1
         )
 
-        self.update_keypoint_matches_service = self.create_service(
-            IMPoseEstimatorUpdateKeypointMatches,
-            "impose_update_keypoint_matches",
-            self.update_keypoint_matches,
-        )
         self.get_templates_service = self.create_service(
             IMPoseEstimatorGetTemplates,
             "impose_get_templates",
             self.get_templates,
-        )
-        self.register_template_service = self.create_service(
-            IMPoseEstimatorRegisterTemplate,
-            "impose_register_template",
-            self.register_template_cb,
         )
         self.toggle_template_service = self.create_service(
             IMPoseEstimatorToggleTemplate,
@@ -437,34 +415,6 @@ class BasicPoseEstimator(Node):
         self.clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8, 8))
 
         self.subscribers: Dict[str, rclpy.subscription.Subscription] = {}
-        self.custom_pose_filtering: Dict[str, Callable[[np.ndarray], bool]] = {
-            "buoy_seg": self.filter_forward_facing,
-            "gate_seg": self.filter_forward_facing,
-            "torpedo_seg": self.filter_forward_facing,
-            "robotx"
-            "bin_abydos_1_part-0": self.filter_bottom_facing,
-            "bin_abydos_1_part-1": self.filter_bottom_facing,
-            "bin_abydos_1_part-2": self.filter_bottom_facing,
-            "bin_earth_1_part-0": self.filter_bottom_facing,
-            "bin_earth_1_part-1": self.filter_bottom_facing,
-            "bin_earth_1_part-2": self.filter_bottom_facing,
-            "bin_earth_2_part-0": self.filter_bottom_facing,
-            "bin_earth_2_part-1": self.filter_bottom_facing,
-            "bin_earth_2_part-2": self.filter_bottom_facing,
-        }
-
-        self.custom_stabilized_orientation_transform: Dict[
-            str, Callable[[np.ndarray], np.ndarray]
-        ] = {
-            # "buoy1": transform_buoy_stabilized,
-            # "buoy2": transform_buoy_stabilized,
-            # "buoy1-2": transform_buoy_stabilized,
-            # "buoy1-3": transform_buoy_stabilized,
-            # "buoy1-4": transform_buoy_stabilized,
-            # "buoy2-2": transform_buoy_stabilized,
-            # "buoy2-3": transform_buoy_stabilized,
-            # "buoy2-4": transform_buoy_stabilized,
-        }
 
         # NOTE: template.json values are real world dimensions corresponding to
         # width and height of image: [width, height] in meters.
@@ -578,81 +528,36 @@ class BasicPoseEstimator(Node):
                 )
                 # self.get_clock().sleep_for(Duration(seconds=0.05))
 
-        print("Registered templates")
-        try:
-            if (
-                front_camera_topic is not None
-                and front_camera_info_topic is not None
-            ):
-                valid, front_camera_info = wait_for_message(
-                    CameraInfo, self, front_camera_info_topic, time_to_wait=10
-                )
-                print(valid, front_camera_info)
-                if not valid:
-                    raise ValueError("Failed to get camera info")
-                self.register_camera(
-                    front_camera_topic,
-                    PinholeCamera.from_camera_info(
-                        front_camera_info, "rect" in front_camera_topic
-                    ),
-                )
-        except ValueError as e:
-            self.get_logger().warn(
-                f"Front camera not found! Using default {e}"
+        if (
+            front_camera_topic is not None
+            and front_camera_info_topic is not None
+        ):
+            valid, front_camera_info = wait_for_message(
+                CameraInfo, self, front_camera_info_topic, time_to_wait=10
             )
-                    # "auv4/front_cam_optical",
-                    # 1024,
-                    # 768,
-                    # 452.3013610839844,
-                    # 482.3131408691406,
-                    # 526.00118954543,
-                    # 396.61607947004813,
-
+            if not valid:
+                raise ValueError("Failed to get camera info")
             self.register_camera(
                 front_camera_topic,
-                PinholeCamera(
-                    "auv4/front_cam_optical",
-                    1024,
-                    768,
-                    1104.9647584119537,
-                    1103.3380651945358,
-                    1031.4081561220519,
-                    752.7821761752537,
+                PinholeCamera.from_camera_info(
+                    front_camera_info, "rect" in front_camera_topic
                 ),
             )
-        try:
-            if (
-                bottom_camera_topic is not None
-                and bottom_camera_info_topic is not None
-            ):
-                valid, bottom_camera_info = wait_for_message(
-                    CameraInfo, self, bottom_camera_info_topic, time_to_wait=10
-                )
-                if not valid:
-                    raise ValueError("Failed to get camera info")
-                self.register_camera(
-                    bottom_camera_topic,
-                    PinholeCamera.from_camera_info(
-                        bottom_camera_info, "rect" in bottom_camera_topic
-                    ),
-                )
-        except ValueError as e:
-            self.get_logger().warn(
-                f"Bottom camera not found! Using default {e}"
+        if (
+            bottom_camera_topic is not None
+            and bottom_camera_info_topic is not None
+        ):
+            valid, bottom_camera_info = wait_for_message(
+                CameraInfo, self, bottom_camera_info_topic, time_to_wait=10
             )
+            if not valid:
+                raise ValueError("Failed to get camera info")
             self.register_camera(
                 bottom_camera_topic,
-                PinholeCamera(
-                    "auv4/bot_cam_optical",
-                    1024,
-                    768,
-                    436.40875244140625,
-                    467.6256103515625,
-                    510.88065980075044,
-                    376.3738157469634,
+                PinholeCamera.from_camera_info(
+                    bottom_camera_info, "rect" in bottom_camera_topic
                 ),
             )
-
 
     def teardown(self):
         for sub in self.subscribers.values():
@@ -833,100 +738,6 @@ class BasicPoseEstimator(Node):
             name, self.matcher_name , object_name, offset
         )
         self.get_logger().error(f"registered template {name}")
-
-    @staticmethod
-    def equalize_green_blue(img):
-        b, g, r = cv2.split(img)
-
-        g_eq = cv2.equalizeHist(g)
-        b_eq = cv2.equalizeHist(b)
-
-        img_eq = cv2.merge((b_eq, g_eq, r))
-
-        return img_eq
-
-    """
-    This function allows us to snap/create new template images for objects of interest
-    using conventional ML. It is a service callback. Does not update the templates.json
-    Please manually update the templates.json file to use the newly taken image.
-    """
-    def register_template_cb(
-        self, req: IMPoseEstimatorRegisterTemplate.Request, res
-    ):
-        compressed_image_topic_name = req.image_topic_name
-        detected_objects_topic_name = req.detected_objects_topic_name
-        object_name = req.object_name
-        detected_object = None
-        try:
-            if detected_objects_topic_name != "" and object_name != "":
-                for i in range(3):
-                    valid, detected_objects = wait_for_message(
-                        DetectedObjects,
-                        self,
-                        detected_objects_topic_name,
-                        time_to_wait=2,
-                    )
-                    if not valid:
-                        continue
-                    if any(
-                        [
-                            x.name == object_name
-                            for x in detected_objects.detected
-                        ]
-                    ):
-                        detected_object = sorted(
-                            detected_objects.detected,
-                            key=lambda x: x.extra[0],
-                            reverse=True,
-                        )[0]
-                        break
-            valid, img = wait_for_message(
-                CompressedImage,
-                self,
-                compressed_image_topic_name,
-                time_to_wait=2,
-            )
-            if not valid:
-                raise ValueError("failed to get message")
-            cv2_img: np.ndarray = self.bridge.compressed_imgmsg_to_cv2(img)
-            if detected_object is not None:
-                PADDING = 10
-                cx, cy, w, h = (
-                    detected_object.centre_x,
-                    detected_object.centre_y,
-                    detected_object.width,
-                    detected_object.height,
-                )
-                x, y = int(cx - w / 2), int(cy - h / 2)
-                cv2_img = cv2_img[
-                    y - PADDING : y + h + PADDING,
-                    x - PADDING : x + w + PADDING,
-                    :,
-                ]
-            cv2.imwrite(
-                os.path.join(
-                    self.templates_dir,
-                    f"{req.template_name}.{self.get_clock().now().secs}.jpg",
-                ),
-                cv2_img,
-            )
-            if req.template_name in self.templates:
-                self.get_logger().info(
-                    "Replacing existing template %s", req.template_name
-                )
-            self.register_template(
-                cv2_img,
-                req.template_name,
-                (req.width, req.height),
-                object_name,
-                (0, 0),
-            )
-            res.success = True
-            return res
-        except Exception as e:
-            res.success = False
-            res.error_message = str(e)
-            return res
 
     def check_subscribers(self):
         for subscriber in self.subscribers.values():
@@ -1131,128 +942,6 @@ class BasicPoseEstimator(Node):
                     debug,
                 )
 
-    def update_keypoint_matches(
-        self,
-        req: IMPoseEstimatorUpdateKeypointMatches.Request,
-        res: IMPoseEstimatorUpdateKeypointMatches.Response,
-    ):
-        """
-        Update the keypoint matches for a template -> image without performing feature matching
-
-        Ensure image is rectified version if available.
-        """
-        template_name = req.template_name
-        camera_frame_id = req.header.frame_id
-        res.success = False
-        if req.template_name not in self.pose_estimator.available_templates:
-            res.error_message = f"Template {req.template_name} not registered"
-            return res
-        if camera_frame_id not in self.pose_estimator.cameras:
-            res.error_message = f"Camera {camera_frame_id} not registered"
-            return res
-        if template_name not in self.templates:
-            res.error_message = f"Template {req.template_name} not registered"
-            return res
-        try:
-            camera_tf = self.tf_buffer.lookup_transform(
-                self.map_ned_frame,
-                camera_frame_id,
-                Time(seconds=0.0),
-                Duration(seconds=3.0),
-            )
-            camera_stamp_pose = (
-                req.header.stamp,
-                compose(
-                    attrgetter("x", "y", "z")(camera_tf.transform.translation),
-                    quat2mat(
-                        attrgetter("w", "x", "y", "z")(
-                            camera_tf.transform.rotation
-                        )
-                    ),
-                    np.ones(3),
-                ),
-            )
-        except Exception as e:
-            self.get_logger().error(str(e))
-            res.error_message = str(e)
-            return res
-
-        kp1 = np.array([x.coord for x in req.keypoints.ref_keypoints])
-        kp2 = np.array([x.coord for x in req.keypoints.cur_keypoints])
-        if len(kp1) != len(kp2):
-            res.error_message = f"Invalid keypoints: got different numbers of correspondences: \
-{len(kp1)}, {len(kp2)}"
-            return res
-        if len(kp1) < max(4, self.templates[template_name].min_matches):
-            res.error_message = f"Invalid keypoints: Need at least {max(4, self.templates[template_name].min_matches)} pairs of keypoints"
-            return res
-        rot, trans, _ = self.pose_estimator.compute_pose_from_keypoints(
-            template_name,
-            camera_frame_id,
-            kp1,
-            kp2,
-            is_planar=False,
-            max_reprojection_error=self.templates[
-                template_name
-            ].reprojection_error_threshold,
-            debug=self.debug,
-        )
-
-        euler = mat2euler(rot, "szyx")
-        y = np.rad2deg(euler[0])
-        p = np.rad2deg(euler[1])
-        r = np.rad2deg(euler[2])
-
-        print(f"Estimated Rot: {y}, {p}, {r}")
-        print(f"Estimated trans: {trans}")
-
-        if np.all(np.abs(trans) < 1e-10) or np.all(np.abs([y, p, r]) < 1e-10):
-            res.error_message = (
-                "Failed to compute pose! All values are near zero!"
-            )
-            return res
-
-        if rot is not None and trans is not None and trans[2] > 0:
-            self.update_pose(
-                rot,
-                trans,
-                camera_frame_id,
-                self.templates[template_name],
-                *camera_stamp_pose,
-                self.debug,
-            )
-        else:
-            res.error_message = "Failed to compute pose!"
-            return res
-        res.error_message = ""
-        return res
-
-    def update_raw_pose(self, rot, trans, frame_id, template: Template, stamp):
-        """
-        Updates the pose estimate of the template in the camera frame with no filtering
-
-        Args:
-            rot: 3x3 rotation matrix
-            trans: 3x1 translation vector
-            frame_id: camera frame id
-            template: Template object
-            stamp: timestamp of the image
-        """
-        transform = TransformStamped()
-        transform.header.stamp = stamp
-        transform.header.frame_id = frame_id
-        transform.child_frame_id = f"{template.name}_raw_optical"
-
-        transform.transform.translation = Vector3(
-            x=trans[0], y=trans[1], z=trans[2]
-        )
-        q = mat2quat(rot)
-        transform.transform.rotation = Quaternion(
-            x=q[1], y=q[2], z=q[3], w=q[0]
-        )
-
-        self.br.sendTransform(transform)
-
     def update_pose(
         self,
         rot,
@@ -1308,16 +997,6 @@ class BasicPoseEstimator(Node):
                 f"Invalid pose estimate for {template.object_name} in {frame_id}: \
 {x:.2f}, {y:.2f}, {z:.2f}, {object_quat}",
                 throttle_duration_sec=1,
-            )
-            return
-
-        if (
-            template.object_name in self.custom_pose_filtering
-            and not self.custom_pose_filtering[template.object_name](pose)
-        ):
-            self.get_logger().warn(
-                1,
-                f"Invalid pose estimate for {template.object_name} based on custom filter",
             )
             return
 
@@ -1399,14 +1078,6 @@ class BasicPoseEstimator(Node):
             np.round(y / rangle) * rangle,
         )
         qw, qx, qy, qz = euler2quat(new_r, new_p, new_y, axes="rzyx")
-
-        if (
-            template.object_name
-            in self.custom_stabilized_orientation_transform
-        ):
-            qw, qx, qy, qz = self.custom_stabilized_orientation_transform[
-                template.object_name
-            ](np.array([qw, qx, qy, qz])).tolist()
 
         transform_zeroed.transform.rotation = Quaternion(
             x=qx, y=qy, z=qz, w=qw
