@@ -12,8 +12,7 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Image
 
-import feature_matcher
-from feature_matcher.tools import warp_corners_and_draw_matches
+from feature_matcher.tools import get_template_specs, warp_corners_and_draw_matches
 from feature_matcher.xfeat import XFeatMatcher
 
 custom_qos = QoSProfile(
@@ -30,9 +29,14 @@ template_json: Dict[str, Dict] = json.loads(
 class SimpleMatcherNode(Node):
     def __init__(self):
         super().__init__("simple_pose_estimator_node")
-        self.get_logger().info(f"{feature_matcher.__path__}")
 
         self.matcher = XFeatMatcher()
+        template_specs = get_template_specs(templates_dir, template_json)
+        for template_name, template in template_specs.items():
+            self.get_logger().info(
+                f"Template {template_name}: {template.dimensions}, {template.offset}, {template.image.shape}"
+            )
+        self.matcher.set_all_templates(template_specs)
 
         self.cv_bridge = CvBridge()
         self.img_subscriber = self.create_subscription(
@@ -49,7 +53,7 @@ class SimpleMatcherNode(Node):
         self.declare_parameter(
             "toggle_template_topic", "/auv4/image_matching/toggle_template"
         )
-        self.active_template = None
+        self.template_name = None
         toggle_template_topic = (
             self.get_parameter("toggle_template_topic")
             .get_parameter_value()
@@ -62,16 +66,15 @@ class SimpleMatcherNode(Node):
         )
 
     def image_callback(self, msg: CompressedImage):
-        if self.active_template is None:
-            self.get_logger().info("No active template. Skipping image processing.")
+        if self.template_name is None:
             return
-        self.active_template: MatLike
 
         img: MatLike = self.cv_bridge.compressed_imgmsg_to_cv2(msg)
         template_mkps, image_mkps = self.matcher.get_matches(self.template_name, img)
 
-        _template = resize(self.active_template["image"], width=200)
-        scale_template = self.active_template["image"].shape[1] / _template.shape[1]
+        template = self.matcher.templates_with_keypoints[self.template_name]
+        _template = resize(template.image, width=200)
+        scale_template = template.image.shape[1] / _template.shape[1]
         _img = resize(img, width=600)
         scale_img = img.shape[1] / _img.shape[1]
 

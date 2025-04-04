@@ -8,8 +8,8 @@ def launch_setup(context, *args, **kwargs):
     return [
         Node(
             package="image_matching",
-            executable="simple_pose_estimator",
-            name="simple_pose_estimator",
+            executable="simple_matcher_node",
+            name="simple_matcher_node",
         )
     ]
 

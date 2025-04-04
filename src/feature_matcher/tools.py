@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from time import time
 from typing import Dict, List, Tuple
@@ -8,6 +9,13 @@ import matplotlib.cm as cm
 import numpy as np
 import torch
 from cv2.typing import MatLike
+
+
+@dataclass
+class TemplateSpec:
+    image: MatLike
+    dimensions: tuple
+    offset: tuple
 
 
 def get_region_template_specs(
@@ -52,7 +60,7 @@ def get_region_template_specs(
 
 def get_template_specs(
     templates_dir: Path, template_files: Dict[str, Dict]
-) -> Dict[str, Dict]:
+) -> Dict[str, TemplateSpec]:
     """
     Get the template specifications from the template files.
 
@@ -61,10 +69,10 @@ def get_template_specs(
         template_files (Dict[str, Dict]): Dictionary containing the template files and their specifications.
 
     Returns:
-        Dict[str, Dict]: A dictionary with the template names as keys and their specifications as values.
+        Dict[str, TemplateSpec]: A dictionary with the template names as keys and their specifications as values.
     """
     # Create a dictionary to store the template specifications
-    templates = {}
+    template_specs = {}
 
     for template_name in template_files.keys():
         # Templates starting with "_" are ignored
@@ -87,19 +95,19 @@ def get_template_specs(
                 region_image, region_dims, region_offset = get_region_template_specs(
                     template_image, template_dims, region
                 )
-                templates[region_name] = {
-                    "template_image": region_image,
-                    "template_dims": region_dims,
-                    "template_offset": region_offset,
-                }
+                template_specs[region_name] = TemplateSpec(
+                    image=region_image,
+                    dimensions=region_dims,
+                    offset=region_offset,
+                )
 
-        templates[template_name] = {
-            "template_image": template_image,
-            "template_dims": template_dims,
-            "template_offset": (0, 0),
-        }
+        template_specs[template_name] = TemplateSpec(
+            image=template_image,
+            dimensions=template_dims,
+            offset=(0, 0),
+        )
 
-    return templates
+    return template_specs
 
 
 def image2tensor(frame, device):

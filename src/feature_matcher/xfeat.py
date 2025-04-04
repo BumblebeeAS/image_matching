@@ -7,6 +7,7 @@ from torch import Tensor
 
 import feature_matcher
 from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
+from feature_matcher.tools import TemplateSpec
 
 weights = Path(feature_matcher.__path__[0]) / Path(
     "models/accelerated_features/weights/xfeat.pt"
@@ -50,7 +51,7 @@ class XFeatMatcher:
         """
         Initialize the XFeatMatcher.
         """
-        self.model = XFeat(weights=weights)
+        self.model = XFeat(weights=str(weights))
         self.templates_with_keypoints: Dict[str, TemplateWithKeypoints] = {}
 
     def get_template_with_keypoints(
@@ -73,11 +74,11 @@ class XFeatMatcher:
         )
         return template
 
-    def set_all_templates(self, template_specs: Dict[str, Dict]):
-        for template_name, template in template_specs.items():
-            template_image = template["image"]
-            template_dims = template["dimensions"]
-            template_offset = template["offset"]
+    def set_all_templates(self, template_specs: Dict[str, TemplateSpec]):
+        for template_name, template_spec in template_specs.items():
+            template_image = template_spec.image
+            template_dims = template_spec.dimensions
+            template_offset = template_spec.offset
 
             self.templates_with_keypoints[template_name] = (
                 self.get_template_with_keypoints(
