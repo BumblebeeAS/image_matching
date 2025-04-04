@@ -1,10 +1,105 @@
 import logging
+from pathlib import Path
 from time import time
+from typing import Dict, List, Tuple
 
 import cv2
 import matplotlib.cm as cm
 import numpy as np
 import torch
+from cv2.typing import MatLike
+
+
+def get_region_template_specs(
+    template_image: MatLike,
+    template_dims: Tuple,
+    region: List,
+):
+    x1, y1, x2, y2 = region
+    x1, x2 = (
+        int(x1 * template_image.shape[1]),
+        int(x2 * template_image.shape[1]),
+    )
+    y1, y2 = (
+        int(y1 * template_image.shape[0]),
+        int(y2 * template_image.shape[0]),
+    )
+
+    template_image_width = x2 - x1
+    template_image_height = y2 - y1
+    region_image = template_image[y1:y2, x1:x2]
+
+    region_px_offset = (
+        (x1 + x2) / 2 - template_image.shape[1] / 2,
+        (y1 + y2) / 2 - template_image.shape[0] / 2,
+    )
+
+    template_width, template_height = template_dims
+
+    # Offset in metres
+    region_offset = (
+        region_px_offset[0] / template_image.shape[1] * template_width,
+        region_px_offset[1] / template_image.shape[0] * template_height,
+    )
+
+    # Region dimensions in metres
+    region_width, region_height = (
+        template_image_width / template_image.shape[1] * template_width,
+        template_image_height / template_image.shape[0] * template_height,
+    )
+    return region_image, (region_width, region_height), region_offset
+
+
+def get_template_specs(
+    templates_dir: Path, template_files: Dict[str, Dict]
+) -> Dict[str, Dict]:
+    """
+    Get the template specifications from the template files.
+
+    Args:
+        templates_dir (Path): Path to the directory containing the template files.
+        template_files (Dict[str, Dict]): Dictionary containing the template files and their specifications.
+
+    Returns:
+        Dict[str, Dict]: A dictionary with the template names as keys and their specifications as values.
+    """
+    # Create a dictionary to store the template specifications
+    templates = {}
+
+    for template_name in template_files.keys():
+        # Templates starting with "_" are ignored
+        if template_name.startswith("_"):
+            continue
+
+        template_file_path = templates_dir / template_name
+        template_image = cv2.imread(str(template_file_path))
+
+        template_data = template_files[template_name]
+        if isinstance(template_data, list):
+            # Template comes with a list of dimensions
+            template_dims = tuple(template_data)
+        else:
+            # Template comes with a dictionary of dimensions and regions of interest
+            template_dims = tuple(template_data["dimensions"])
+
+            for region_name, region in template_data["regions"].items():
+                region_name = f"{template_name}_{region_name}"
+                region_image, region_dims, region_offset = get_region_template_specs(
+                    template_image, template_dims, region
+                )
+                templates[region_name] = {
+                    "template_image": region_image,
+                    "template_dims": region_dims,
+                    "template_offset": region_offset,
+                }
+
+        templates[template_name] = {
+            "template_image": template_image,
+            "template_dims": template_dims,
+            "template_offset": (0, 0),
+        }
+
+    return templates
 
 
 def image2tensor(frame, device):
