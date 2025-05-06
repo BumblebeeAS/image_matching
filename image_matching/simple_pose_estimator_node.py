@@ -32,9 +32,20 @@ def get_object_pose(
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray]: (R, t, inliers)
+
+    Raises:
+        ValueError: If the number of object points is less than 4.
+        Exception: If cv2.solvePnPRansac fails.
     """
     # TODO: Account for equidistant distortion
-    # TODO: Check if less than 4 points (move check here)
+    if len(object_points) < 4:
+        raise ValueError(
+            f"At least 4 points needed to estimate pose, only {len(object_points)} given"
+        )
+
+    # RANSAC accounts for outliers
+    # A small max reprojection error is used to get a good pose estimate
+    # SQPnP is more robust than EPnP
     _, rvec, t, inliers = cv2.solvePnPRansac(
         object_points,
         image_points,
@@ -116,21 +127,21 @@ class SimplePoseEstimator(Node):
 
     def point_correspondences_callback(self, msg: PointCorrespondencesStamped):
         # TODO: Filter using clustering or Kalman
-        # TODO: Try catch
-        # TODO: Use SVD to handle ill-defined R?
         object_points = to_numpy_f64(msg.object_points)
         image_points = to_numpy_f64(msg.image_points)
         object_points, image_points = filter_by_homography(object_points, image_points)
 
-        # self.get_logger().info(
-        #     f"Received {object_points} and {image_points} image points"
-        # )
-        if len(object_points) < 4:
+        try:
+            R, t, _ = get_object_pose(self.camera, object_points, image_points)
+        except Exception as e:
+            self.get_logger().warn(f"Pose estimation failed: {e}")
             return
 
-        R, t, _ = get_object_pose(self.camera, object_points, image_points)
-        # self.get_logger().info(f"Pose: {R}, {t}")
-        qx, qy, qz, qw = mat2quat(R)
+        try:
+            qx, qy, qz, qw = mat2quat(R)
+        except np.linalg.LinAlgError as e:
+            self.get_logger().warn(f"Error in mat2quat, failed to convert R: {e}")
+            return
 
         transform_stamped = TransformStamped()
         transform_stamped.header = msg.header
