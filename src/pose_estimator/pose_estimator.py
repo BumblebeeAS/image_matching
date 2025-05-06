@@ -2,14 +2,13 @@ import logging
 from typing import Callable, Dict, List, Tuple
 
 import cv2
-from feature_matcher.keypoints_match_producer import KeypointsMatchProducer
-from feature_matcher.keypoints_match_producer import (
-    get_keypoints_match_producer,
-)
-from feature_matcher.tools import create_show_image
-from feature_matcher.tools import plot_matches
 import numpy as np
 
+from feature_matcher.keypoints_match_producer import (
+    KeypointsMatchProducer,
+    get_keypoints_match_producer,
+)
+from feature_matcher.tools import create_show_image, plot_matches
 from pose_estimator.PinholeCamera import PinholeCamera
 
 
