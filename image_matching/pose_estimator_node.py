@@ -39,6 +39,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.time import Time
+from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo, CompressedImage
 from transforms3d.affines import compose, decompose
 from transforms3d.euler import euler2quat, mat2euler, quat2euler
@@ -48,7 +49,6 @@ from feature_matcher.keypoints_match_producer import get_keypoints_match_produce
 from pose_estimator.PinholeCamera import PinholeCamera
 from pose_estimator.pose_estimator import PoseEstimator
 from pose_estimator.pose_weighted_average import get_kmeans_center
-from utils.wait_for_message import wait_for_message
 
 mutex = threading.Lock()
 

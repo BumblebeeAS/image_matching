@@ -8,12 +8,12 @@ from bb_perception_msgs.msg import PointCorrespondencesStamped
 from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo
 from transforms3d.quaternions import mat2quat
 
 from pose_estimator.PinholeCamera import PinholeCamera
 from utils.ros_np_multiarray import to_numpy_f64
-from utils.wait_for_message import wait_for_message
 
 
 def get_object_pose(
@@ -92,9 +92,7 @@ class SimplePoseEstimator(Node):
         camera_info_topic = (
             self.get_parameter("camera_info_topic").get_parameter_value().string_value
         )
-        valid, front_camera_info = wait_for_message(
-            CameraInfo, self, camera_info_topic, time_to_wait=10
-        )
+        valid, front_camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
         if not valid:
             raise ValueError("Failed to get camera info")
         else:
