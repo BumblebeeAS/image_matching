@@ -2,15 +2,18 @@ import json
 from pathlib import Path
 from typing import Dict
 
+import numpy as np
 import rclpy
 from ament_index_python import get_package_share_directory
 from bb_msgs.srv import IMPoseEstimatorToggleTemplate
+from bb_perception_msgs.msg import PointCorrespondencesStamped
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
 from imutils import resize
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Image
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 from feature_matcher.tools import get_template_specs, warp_corners_and_draw_matches
 from feature_matcher.xfeat import XFeatMatcher
@@ -19,11 +22,34 @@ custom_qos = QoSProfile(
     reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
 )  # Reliable due to image transport, will change to best effort soon
 
-
 templates_dir = Path(get_package_share_directory("image_matching")) / "templates"
 template_json: Dict[str, Dict] = json.loads(
     open(Path(templates_dir) / "templates.json", "r").read()
 )
+
+
+def numpy_to_float64_multiarray(data: np.ndarray) -> Float64MultiArray:
+    """
+    Convert a numpy array to a Float64MultiArray message.
+
+    Args:
+        data (np.ndarray): NumPy array to convert.
+
+    Returns:
+        Float64MultiArray: message
+    """
+    msg = Float64MultiArray()
+    msg.data = data.flatten().tolist()
+    dims = data.shape[::-1]
+    axes = range(len(dims))[::-1]
+    for i, (dim, axis) in enumerate(zip(dims, axes)):
+        dim_msg = MultiArrayDimension()
+        dim_msg.label = f"axis_{str(axis)}"
+        dim_msg.size = dim
+        dim_msg.stride = int(np.prod(dims[i:]))
+        msg.layout.dim.append(dim_msg)
+
+    return msg
 
 
 class SimpleMatcherNode(Node):
@@ -31,12 +57,12 @@ class SimpleMatcherNode(Node):
         super().__init__("simple_pose_estimator_node")
 
         self.matcher = XFeatMatcher()
-        template_specs = get_template_specs(templates_dir, template_json)
-        for template_name, template in template_specs.items():
+        self.template_specs = get_template_specs(templates_dir, template_json)
+        for template_name, template in self.template_specs.items():
             self.get_logger().info(
                 f"Template {template_name}: {template.dimensions}, {template.offset}, {template.image.shape}"
             )
-        self.matcher.set_all_templates(template_specs)
+        self.matcher.set_all_templates(self.template_specs)
 
         self.cv_bridge = CvBridge()
         self.img_subscriber = self.create_subscription(
@@ -44,6 +70,12 @@ class SimpleMatcherNode(Node):
             "/auv4/front_cam/color/image/compressed",
             self.image_callback,
             1,
+        )
+
+        self.points_publisher = self.create_publisher(
+            PointCorrespondencesStamped,
+            "/auv4/front_cam/image_matching/point_correspondences",
+            10,
         )
         self.img_publisher = self.create_publisher(
             Image, "/auv4/front_cam/image_matching", 10
@@ -72,6 +104,20 @@ class SimpleMatcherNode(Node):
         img: MatLike = self.cv_bridge.compressed_imgmsg_to_cv2(msg)
         template_mkps, image_mkps = self.matcher.get_matches(self.template_name, img)
 
+        # Send 3D object - 2D image correspondences
+        template_spec = self.template_specs[self.template_name]
+        image_dims = np.array(template_spec.image.shape[:2][::-1])
+        object_dims = np.array(template_spec.dimensions)
+        object_mkps = template_mkps / image_dims * object_dims
+        object_mkps = np.hstack([object_mkps, np.zeros((object_mkps.shape[0], 1))])
+
+        points_msg = PointCorrespondencesStamped()
+        points_msg.header = msg.header
+        points_msg.object_points = numpy_to_float64_multiarray(object_mkps)
+        points_msg.image_points = numpy_to_float64_multiarray(image_mkps)
+        self.points_publisher.publish(points_msg)
+
+        # TODO: Move annotation to separate node
         template = self.matcher.templates_with_keypoints[self.template_name]
         _template = resize(template.image, width=200)
         scale_template = template.image.shape[1] / _template.shape[1]
