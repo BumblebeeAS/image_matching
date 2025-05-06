@@ -13,10 +13,10 @@ from imutils import resize
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Image
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 from feature_matcher.tools import get_template_specs, warp_corners_and_draw_matches
 from feature_matcher.xfeat import XFeatMatcher
+from utils.ros_np_multiarray import to_multiarray_f64
 
 custom_qos = QoSProfile(
     reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
@@ -26,30 +26,6 @@ templates_dir = Path(get_package_share_directory("image_matching")) / "templates
 template_json: Dict[str, Dict] = json.loads(
     open(Path(templates_dir) / "templates.json", "r").read()
 )
-
-
-def numpy_to_float64_multiarray(data: np.ndarray) -> Float64MultiArray:
-    """
-    Convert a numpy array to a Float64MultiArray message.
-
-    Args:
-        data (np.ndarray): NumPy array to convert.
-
-    Returns:
-        Float64MultiArray: message
-    """
-    msg = Float64MultiArray()
-    msg.data = data.flatten().tolist()
-    dims = data.shape[::-1]
-    axes = range(len(dims))[::-1]
-    for i, (dim, axis) in enumerate(zip(dims, axes)):
-        dim_msg = MultiArrayDimension()
-        dim_msg.label = f"axis_{str(axis)}"
-        dim_msg.size = dim
-        dim_msg.stride = int(np.prod(dims[i:]))
-        msg.layout.dim.append(dim_msg)
-
-    return msg
 
 
 class SimpleMatcherNode(Node):
@@ -85,7 +61,7 @@ class SimpleMatcherNode(Node):
         self.declare_parameter(
             "toggle_template_topic", "/auv4/image_matching/toggle_template"
         )
-        self.template_name = None
+        self.template_name: None | str = None
         toggle_template_topic = (
             self.get_parameter("toggle_template_topic")
             .get_parameter_value()
@@ -113,8 +89,9 @@ class SimpleMatcherNode(Node):
 
         points_msg = PointCorrespondencesStamped()
         points_msg.header = msg.header
-        points_msg.object_points = numpy_to_float64_multiarray(object_mkps)
-        points_msg.image_points = numpy_to_float64_multiarray(image_mkps)
+        points_msg.object_frame_id = Path(self.template_name).stem + "_optical"
+        points_msg.object_points = to_multiarray_f64(object_mkps)
+        points_msg.image_points = to_multiarray_f64(image_mkps)
         self.points_publisher.publish(points_msg)
 
         # TODO: Move annotation to separate node
@@ -127,7 +104,6 @@ class SimpleMatcherNode(Node):
         canvas: MatLike = warp_corners_and_draw_matches(
             template_mkps // scale_template, image_mkps // scale_img, _template, _img
         )
-        self.get_logger().info(f"{canvas.shape}")
 
         img_msg = self.cv_bridge.cv2_to_imgmsg(canvas, encoding="bgr8")
         self.img_publisher.publish(img_msg)

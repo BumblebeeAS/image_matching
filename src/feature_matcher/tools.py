@@ -14,7 +14,7 @@ from cv2.typing import MatLike
 @dataclass
 class TemplateSpec:
     image: MatLike
-    dimensions: tuple
+    dimensions: tuple  # (width, height)
     offset: tuple
 
 

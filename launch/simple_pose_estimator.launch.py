@@ -1,23 +1,21 @@
 from launch_ros.actions import Node
 
 from launch import LaunchDescription
-from launch.actions import OpaqueFunction
-
-
-def launch_setup(context, *args, **kwargs):
-    return [
-        Node(
-            package="image_matching",
-            executable="simple_matcher_node",
-            name="simple_matcher_node",
-        )
-    ]
 
 
 def generate_launch_description():
     ld = LaunchDescription(
         [
-            OpaqueFunction(function=launch_setup),
+            Node(
+                package="image_matching",
+                executable="simple_matcher_node",
+                name="simple_matcher_node",
+            ),
+            Node(
+                package="image_matching",
+                executable="simple_pose_estimator_node",
+                name="simple_pose_estimator_node",
+            ),
             Node(
                 package="image_transport",
                 executable="republish",
