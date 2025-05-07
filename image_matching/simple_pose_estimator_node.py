@@ -5,7 +5,13 @@ import numpy as np
 import rclpy
 import tf2_ros
 from bb_perception_msgs.msg import PointCorrespondencesStamped
-from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
+from geometry_msgs.msg import (
+    Point,
+    PoseWithCovarianceStamped,
+    Quaternion,
+    TransformStamped,
+    Vector3,
+)
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.wait_for_message import wait_for_message
@@ -46,7 +52,7 @@ def get_object_pose(
     # RANSAC accounts for outliers
     # A small max reprojection error is used to get a good pose estimate
     # SQPnP is more robust than EPnP
-    _, rvec, t, inliers = cv2.solvePnPRansac(
+    _, rvec, tvec, inliers = cv2.solvePnPRansac(
         object_points,
         image_points,
         camera.camera_matrix(),
@@ -56,10 +62,7 @@ def get_object_pose(
         flags=cv2.SOLVEPNP_SQPNP,
     )
 
-    R = cv2.Rodrigues(rvec)[0]
-    t = t.squeeze()
-
-    return R, t, inliers
+    return rvec, tvec, inliers
 
 
 def filter_by_homography(object_points: np.ndarray, image_points: np.ndarray) -> tuple:
@@ -90,6 +93,35 @@ def filter_by_homography(object_points: np.ndarray, image_points: np.ndarray) ->
     object_points = object_points[mask]
     image_points = image_points[mask]
     return object_points, image_points
+
+
+def estimate_covariance(
+    object_points: np.ndarray,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    camera: PinholeCamera,
+    inliers: np.ndarray,
+) -> np.ndarray:
+    # Jacobian is a 2N x 15 matrix
+    # See https://github.com/opencv/opencv/blob/16a3d37dc159dbcaaf8ee74cf63669f0203f9655/modules/calib3d/src/calibration_base.cpp#L1508-L1512
+    _, jacobian = cv2.projectPoints(
+        object_points[inliers.flatten()],
+        rvec,
+        tvec,
+        camera.camera_matrix(),
+        camera.dist_coeffs(),
+    )
+
+    # Get jacobian of rotation and translation
+    # Interchange rotation and translation covariance
+    jacobian = jacobian[:, :6]
+    jacobian[:, :3], jacobian[:, 3:] = (
+        jacobian[:, 3:].copy(),
+        jacobian[:, :3].copy(),
+    )
+
+    # Fisher information matrix
+    return np.linalg.inv(jacobian.T @ jacobian)
 
 
 class SimplePoseEstimator(Node):
@@ -125,6 +157,12 @@ class SimplePoseEstimator(Node):
             1,
         )
 
+        self.pose_publisher = self.create_publisher(
+            PoseWithCovarianceStamped,
+            "/auv4/front_cam/image_matching/pose",
+            1,
+        )
+
     def point_correspondences_callback(self, msg: PointCorrespondencesStamped):
         # TODO: Filter using clustering or Kalman
         object_points = to_numpy_f64(msg.object_points)
@@ -132,16 +170,39 @@ class SimplePoseEstimator(Node):
         object_points, image_points = filter_by_homography(object_points, image_points)
 
         try:
-            R, t, _ = get_object_pose(self.camera, object_points, image_points)
+            rvec, tvec, inliers = get_object_pose(
+                self.camera, object_points, image_points
+            )
+            R, _ = cv2.Rodrigues(rvec)
+            t = tvec.squeeze()
         except Exception as e:
             self.get_logger().warn(f"Pose estimation failed: {e}")
             return
+
+        if inliers is None:
+            self.get_logger().warn("No inliers found")
+            return
+
+        covariance = estimate_covariance(
+            object_points, rvec, tvec, self.camera, inliers
+        )
+        self.get_logger().info(
+            f"Pose estimation std dev: {np.sqrt(covariance.diagonal())}"
+        )
 
         try:
             qx, qy, qz, qw = mat2quat(R)
         except np.linalg.LinAlgError as e:
             self.get_logger().warn(f"Error in mat2quat, failed to convert R: {e}")
             return
+
+        pose = PoseWithCovarianceStamped()
+        pose.header = msg.header
+        pose.header.frame_id = self.camera_frame_id
+        pose.pose.pose.position = Point(x=t[0], y=t[1], z=t[2])
+        pose.pose.pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        pose.pose.covariance = covariance.flatten().tolist()
+        self.pose_publisher.publish(pose)
 
         transform_stamped = TransformStamped()
         transform_stamped.header = msg.header
