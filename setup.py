@@ -26,6 +26,10 @@ setup(
             os.path.join("share", package_name, "launch"),
             glob(os.path.join("launch", "*launch.[pxy][yma]*")),
         ),
+        (
+            os.path.join("share", package_name, "cfg"),
+            glob(os.path.join("cfg", "*.yaml")),
+        ),
         # TODO: Make feature_matcher and pose_estimator proper packages and use the following
         # (
         #     os.path.join("share", package_name, "src"),

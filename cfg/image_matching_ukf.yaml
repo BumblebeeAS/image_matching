@@ -1,0 +1,27 @@
+ukf_se:
+  ros__parameters:
+    dynamic_process_noise_covariance: false
+    frequency: 20.0
+    reset_on_time_jump: false
+    sensor_timeout: 0.1
+    two_d_mode: false
+    print_diagnostics: true
+    publish_tf: true
+    publish_acceleration: false
+
+    odom_frame: world
+    base_link_frame: auv4/torpedo
+    
+    pose0: /auv4/front_cam/image_matching/pose
+    pose0_config: [true,  true,  true,
+                   true,  true,  true, 
+                   false, false, false, 
+                   false, false, false, 
+                   false, false, false]
+    pose0_differential: false
+    pose0_relative: false
+    pose0_queue_size: 10
+    
+    use_control: false
+    smooth_lagged_data: true
+    

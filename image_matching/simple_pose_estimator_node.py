@@ -41,13 +41,20 @@ def get_object_pose(
 
     Raises:
         ValueError: If the number of object points is less than 4.
-        Exception: If cv2.solvePnPRansac fails.
+        ValueError: If no inliers are found.
+        Exception: If cv2.solvePnPRansac or cv2.solvePnPRefineLM fails.
     """
     # TODO: Account for equidistant distortion
+    # TODO: For the planar case, init cv2.solvePnPRefineLM directly with homography
     if len(object_points) < 4:
         raise ValueError(
             f"At least 4 points needed to estimate pose, only {len(object_points)} given"
         )
+
+    # This step gives a rough estimate of the pose for solvePnPRefineLM and
+    # allows for quick termination if no inliers are found. This is useful
+    # when there are few point correspondences and homography estimation
+    # cannot determine if the points are inliers or not.
 
     # RANSAC accounts for outliers
     # A small max reprojection error is used to get a good pose estimate
@@ -62,12 +69,31 @@ def get_object_pose(
         flags=cv2.SOLVEPNP_SQPNP,
     )
 
-    return rvec, tvec, inliers
+    if inliers is None:
+        raise ValueError("No inliers found")
+
+    # TODO: Split into planar and non-planar cases.
+    # Case 1: Object points are non-planar.
+    # Use only the inliers from RANSAC as homography estimation does not apply.
+    # Case 2: Use all points for the planar case.
+    # Homography estimation filters well. RANSAC filtering is too strict, resulting
+    # in too few point correspondences and a noisy pose estimate.
+    rvec, tvec = cv2.solvePnPRefineLM(
+        object_points,
+        image_points,
+        camera.camera_matrix(),
+        camera.dist_coeffs(),
+        rvec,
+        tvec,
+        criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 1000, 1e-6),
+    )
+
+    return rvec, tvec
 
 
 def filter_by_homography(object_points: np.ndarray, image_points: np.ndarray) -> tuple:
     """Filter the object points and image points by homography,
-    by assuming that the object points are in the same plane.
+    assuming that the object points are in the same plane.
 
     Note: The last coordinate of the object points are discarded.
     The object points should first be transformed so that the last
@@ -100,16 +126,11 @@ def estimate_covariance(
     rvec: np.ndarray,
     tvec: np.ndarray,
     camera: PinholeCamera,
-    inliers: np.ndarray,
 ) -> np.ndarray:
     # Jacobian is a 2N x 15 matrix
     # See https://github.com/opencv/opencv/blob/16a3d37dc159dbcaaf8ee74cf63669f0203f9655/modules/calib3d/src/calibration_base.cpp#L1508-L1512
     _, jacobian = cv2.projectPoints(
-        object_points[inliers.flatten()],
-        rvec,
-        tvec,
-        camera.camera_matrix(),
-        camera.dist_coeffs(),
+        object_points, rvec, tvec, camera.camera_matrix(), camera.dist_coeffs()
     )
 
     # Get jacobian of rotation and translation
@@ -170,25 +191,17 @@ class SimplePoseEstimator(Node):
         object_points, image_points = filter_by_homography(object_points, image_points)
 
         try:
-            rvec, tvec, inliers = get_object_pose(
-                self.camera, object_points, image_points
-            )
+            rvec, tvec = get_object_pose(self.camera, object_points, image_points)
             R, _ = cv2.Rodrigues(rvec)
             t = tvec.squeeze()
         except Exception as e:
             self.get_logger().warn(f"Pose estimation failed: {e}")
             return
 
-        if inliers is None:
-            self.get_logger().warn("No inliers found")
-            return
-
-        covariance = estimate_covariance(
-            object_points, rvec, tvec, self.camera, inliers
-        )
-        self.get_logger().info(
-            f"Pose estimation std dev: {np.sqrt(covariance.diagonal())}"
-        )
+        covariance = estimate_covariance(object_points, rvec, tvec, self.camera)
+        # self.get_logger().info(
+        #     f"Pose estimation std dev: {np.sqrt(covariance.diagonal())}"
+        # )
 
         try:
             qx, qy, qz, qw = mat2quat(R)
