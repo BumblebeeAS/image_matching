@@ -78,7 +78,7 @@ def get_object_pose(
     # Case 2: Use all points for the planar case.
     # Homography estimation filters well. RANSAC filtering is too strict, resulting
     # in too few point correspondences and a noisy pose estimate.
-    rvec, tvec = cv2.solvePnPRefineLM(
+    rvec, tvec = cv2.solvePnPRefineVVS(
         object_points,
         image_points,
         camera.camera_matrix(),
