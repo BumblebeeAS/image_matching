@@ -22,17 +22,27 @@ custom_qos = QoSProfile(
     reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
 )  # Reliable due to image transport, will change to best effort soon
 
-templates_dir = Path(get_package_share_directory("image_matching")) / "templates"
-template_json: Dict[str, Dict] = json.loads(
-    open(Path(templates_dir) / "templates.json", "r").read()
-)
-
 
 class SimpleMatcherNode(Node):
     def __init__(self):
         super().__init__("simple_pose_estimator_node")
 
         self.matcher = XFeatMatcher()
+
+        default_templates_dir = (
+            Path(get_package_share_directory("image_matching"))
+            / "templates"
+            / "robosub25"
+        )
+        self.declare_parameter("templates_dir", default_templates_dir.as_posix())
+
+        templates_dir = Path(
+            self.get_parameter("templates_dir").get_parameter_value().string_value
+        )
+
+        template_json: Dict[str, Dict] = json.loads(
+            open(templates_dir / "templates.json", "r").read()
+        )
         self.template_specs = get_template_specs(templates_dir, template_json)
         for template_name, template in self.template_specs.items():
             self.get_logger().info(
