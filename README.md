@@ -26,7 +26,7 @@ camera_frame_id: 'auv4/front_cam_optical'
 enabled: true"
 ```
 
-See `/impose_dev_vis/compressed` for visualization.
+See `/auv4/front_cam/image_matching/compressed` for visualization.
 
 Credits:
 https://github.com/Shiaoming/Python-VO
