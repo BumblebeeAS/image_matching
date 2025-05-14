@@ -226,9 +226,9 @@ class SimplePoseEstimator(Node):
         self.br.sendTransform(transform_stamped)
 
 
-def main():
+def main(args=None):
     logging.basicConfig(level=logging.INFO)
-    rclpy.init()
+    rclpy.init(args=args)
     node = SimplePoseEstimator()
     tf2_ros.TransformListener(node.tf_buffer, node, spin_thread=False)
     rclpy.spin(node)

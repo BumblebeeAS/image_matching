@@ -149,8 +149,8 @@ class SimpleMatcherNode(Node):
             return response
 
 
-def main():
-    rclpy.init()
+def main(args=None):
+    rclpy.init(args=args)
     node = SimpleMatcherNode()
     rclpy.spin(node)
     node.destroy_node()

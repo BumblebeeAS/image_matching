@@ -6,7 +6,7 @@ from launch.substitutions import PathJoinSubstitution
 
 
 def generate_launch_description():
-    ld = LaunchDescription(
+    return LaunchDescription(
         [
             Node(
                 package="image_matching",
@@ -51,4 +51,3 @@ def generate_launch_description():
             ),
         ]
     )
-    return ld
