@@ -9,6 +9,8 @@ import feature_matcher
 from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.tools import TemplateSpec
 
+from numpy.typing import ArrayLike
+
 weights = Path(feature_matcher.__path__[0]) / Path(
     "models/accelerated_features/weights/xfeat.pt"
 )
@@ -86,7 +88,50 @@ class XFeatMatcher:
                 )
             )
 
-    def get_matches(self, template_name, image):
+    def get_matches(
+        self, template_name: str, image: MatLike
+    ) -> Tuple[ArrayLike, ArrayLike]:
+        """Get matches between the template and the image.
+        This method uses the XFeat model to detect and compute keypoints and descriptors
+        for both the template and the image. It then matches the keypoints and descriptors
+        using Lighterglue.
+
+        Args:
+            template_name (str): Template name
+            image (MatLike): Image to match against the template
+
+        Returns:
+            Tuple[ArrayLike, ArrayLike]: Matched keypoints from the template and the image.
+        """
+        template = self.templates_with_keypoints[template_name]
+        template_data = {
+            "keypoints": template.keypoints,
+            "descriptors": template.descriptors,
+            "image_size": (template.image.shape[1], template.image.shape[0]),
+        }
+
+        image_data = self.model.detectAndCompute(image)[0]
+        image_data.update({"image_size": (image.shape[1], image.shape[0])})
+
+        mkpts_0, mkpts_1, _ = self.model.match_lighterglue(template_data, image_data)
+
+        return mkpts_0, mkpts_1
+
+    def get_matches_cossim(
+        self, template_name: str, image: MatLike
+    ) -> Tuple[ArrayLike, ArrayLike]:
+        """Get matches between the template and the image.
+        This method uses the XFeat model to detect and compute keypoints and descriptors
+        for both the template and the image. It then matches the keypoints and descriptors
+        using cosine similarity.
+
+        Args:
+            template_name (str): Template name
+            image (MatLike): Image to match against the template
+
+        Returns:
+            Tuple[ArrayLike, ArrayLike]: Matched keypoints from the template and the image.
+        """
         template = self.templates_with_keypoints[template_name]
         template_kps = template.keypoints
         template_descs = template.descriptors
