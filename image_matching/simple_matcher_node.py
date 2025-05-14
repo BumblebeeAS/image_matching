@@ -111,6 +111,9 @@ class SimpleMatcherNode(Node):
         _img = resize(img, width=600)
         scale_img = img.shape[1] / _img.shape[1]
 
+        if len(template_mkps) < 4 or len(image_mkps) < 4:
+            self.get_logger().warn(f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required.")
+            return
         canvas: MatLike = warp_corners_and_draw_matches(
             template_mkps // scale_template, image_mkps // scale_img, _template, _img
         )
