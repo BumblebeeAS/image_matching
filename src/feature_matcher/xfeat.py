@@ -2,14 +2,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple
 
+import numpy as np
 from cv2.typing import MatLike
+from numpy.typing import ArrayLike
 from torch import Tensor
 
 import feature_matcher
 from feature_matcher.models.accelerated_features.modules.xfeat import XFeat
 from feature_matcher.tools import TemplateSpec
-
-from numpy.typing import ArrayLike
 
 weights = Path(feature_matcher.__path__[0]) / Path(
     "models/accelerated_features/weights/xfeat.pt"
@@ -112,6 +112,9 @@ class XFeatMatcher:
 
         image_data = self.model.detectAndCompute(image)[0]
         image_data.update({"image_size": (image.shape[1], image.shape[0])})
+
+        if template.keypoints.shape[0] == 0 or image_data["keypoints"].shape[0] == 0:
+            return np.array([])[:, np.newaxis], np.array([])[:, np.newaxis]
 
         mkpts_0, mkpts_1, _ = self.model.match_lighterglue(template_data, image_data)
 

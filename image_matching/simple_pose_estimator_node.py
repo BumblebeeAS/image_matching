@@ -105,7 +105,22 @@ def filter_by_homography(object_points: np.ndarray, image_points: np.ndarray) ->
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray]: (R, t, inliers)
+
+    Raises:
+        ValueError: If the number of object points is less than 4.
+        ValueError: If the number of object points and image points are not equal.
     """
+    if len(object_points) < 4:
+        raise ValueError(
+            f"At least 4 points needed to estimate homography, only {len(object_points)} given"
+        )
+
+    if len(object_points) != len(image_points):
+        raise ValueError(
+            f"Number of object points and image points must be equal, "
+            f"but got {len(object_points)} and {len(image_points)}"
+        )
+
     object_points_2d = object_points[:, :2]
     _, mask = cv2.findHomography(
         object_points_2d,
@@ -188,6 +203,14 @@ class SimplePoseEstimator(Node):
         # TODO: Filter using clustering or Kalman
         object_points = to_numpy_f64(msg.object_points)
         image_points = to_numpy_f64(msg.image_points)
+
+        if object_points.shape[0] < 4 or image_points.shape[0] < 4:
+            self.get_logger().warn(
+                f"""Not enough point correspondences:
+                {object_points.shape[0]} object points and {image_points.shape[0]} image points"""
+            )
+            return
+
         object_points, image_points = filter_by_homography(object_points, image_points)
 
         try:
