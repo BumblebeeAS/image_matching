@@ -142,6 +142,20 @@ def estimate_covariance(
     tvec: np.ndarray,
     camera: PinholeCamera,
 ) -> np.ndarray:
+    """Get covariance of pose estimate from reprojection.
+
+    Args:
+        object_points (np.ndarray): N x 3
+        rvec (np.ndarray): Rotation vector
+        tvec (np.ndarray): Translation vector
+        camera (PinholeCamera): Camera object
+
+    Returns:
+        np.ndarray: 6 x 6 covariance matrix
+
+    Raises:
+        np.linalg.LinAlgError: If the inverse of the Jacobian cannot be computed.
+    """
     # Jacobian is a 2N x 15 matrix
     # See https://github.com/opencv/opencv/blob/16a3d37dc159dbcaaf8ee74cf63669f0203f9655/modules/calib3d/src/calibration_base.cpp#L1508-L1512
     _, jacobian = cv2.projectPoints(
@@ -221,7 +235,14 @@ class SimplePoseEstimator(Node):
             self.get_logger().warn(f"Pose estimation failed: {e}")
             return
 
-        covariance = estimate_covariance(object_points, rvec, tvec, self.camera)
+        try:
+            covariance = estimate_covariance(object_points, rvec, tvec, self.camera)
+        except np.linalg.LinAlgError as e:
+            self.get_logger().warn(
+                f"Covariance estimation failed, inversion for FIM matrix failed: {e}"
+            )
+            return
+
         # self.get_logger().info(
         #     f"Pose estimation std dev: {np.sqrt(covariance.diagonal())}"
         # )
