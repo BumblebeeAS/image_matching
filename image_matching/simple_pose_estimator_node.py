@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -16,6 +17,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo
+from sklearn.cluster import HDBSCAN
 from transforms3d.quaternions import mat2quat
 
 from pose_estimator.PinholeCamera import PinholeCamera
@@ -189,9 +191,7 @@ class SimplePoseEstimator(Node):
         if not valid:
             raise ValueError("Failed to get camera info")
         else:
-            self.camera = PinholeCamera.from_camera_info(
-                front_camera_info, rectified=False
-            )
+            self.camera = PinholeCamera.from_camera_info(front_camera_info, rectified=False)
 
         self.camera_frame_id = (
             self.get_parameter("camera_frame_id").get_parameter_value().string_value
@@ -212,6 +212,18 @@ class SimplePoseEstimator(Node):
             "/auv4/front_cam/image_matching/pose",
             1,
         )
+
+        self.declare_parameter("num_detections", 10)  # number of detections before clustering
+        self.num_detections = (
+            self.get_parameter("num_detections").get_parameter_value().integer_value
+        )
+        self.hdb = HDBSCAN(
+            min_cluster_size=10,
+            allow_single_cluster=True,
+            store_centers="centroid",
+        )
+        self.q_idx = 0
+        self.pos_cluster_q = [None] * self.num_detections
 
     def point_correspondences_callback(self, msg: PointCorrespondencesStamped):
         # TODO: Filter using clustering or Kalman
@@ -256,9 +268,30 @@ class SimplePoseEstimator(Node):
         pose = PoseWithCovarianceStamped()
         pose.header = msg.header
         pose.header.frame_id = self.camera_frame_id
+        # TODO: if the clustering works can remove the below for now leave it
         pose.pose.pose.position = Point(x=t[0], y=t[1], z=t[2])
         pose.pose.pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
         pose.pose.covariance = covariance.flatten().tolist()
+
+        # add clutering for pose
+        pos_xyz = np.array([t[0], t[1], t[2]])
+        self.pos_cluster_q[self.q_idx] = (pos_xyz, [qx, qy, qz, qw], pose.pose.covariance)
+        if self.q_idx == self.num_detections:
+            # do the clustering and publish the pose
+            pose_xyz, q, cov = self.filter_by_clustering()
+            if pose_xyz is not None:
+                pose.pose.covariance = cov
+                pose.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+                self.get_logger().info(f"Publishing posxyz: {pose_xyz} after clustering.")
+                pose.pose.pose.position = Point(x=pose_xyz[0], y=pose_xyz[1], z=pose_xyz[2])
+            else:
+                # we just reset the cluster q in this case
+                self.get_logger().warn("No clusters found")
+            self.q_idx = 0
+        else:
+            self.q_idx += 1
+            return  # not enough detections
+
         self.pose_publisher.publish(pose)
 
         transform_stamped = TransformStamped()
@@ -268,6 +301,43 @@ class SimplePoseEstimator(Node):
         transform_stamped.transform.rotation = Quaternion(x=qx, y=qy, z=qz, w=qw)
 
         self.br.sendTransform(transform_stamped)
+
+    def filter_by_clustering(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Filter the pose estimates by clustering.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray, np.ndarray]: pose, (qx, qy, qz, qw), covariance
+        """
+        self.hdb.fit([x[0] for x in self.pos_cluster_q])
+        labels = self.hdb.labels_
+
+        clusters = defaultdict(list)
+        for i, label in enumerate(labels):
+            clusters[label].append(self.pos_cluster_q[i])
+
+        largest_cluster_size = 0
+        largest_cluster_label = -1
+
+        for label, cluster in clusters.items():
+            if label == -1:
+                continue
+            if len(cluster) > largest_cluster_size:
+                largest_cluster_size = len(cluster)
+                largest_cluster = label
+        if largest_cluster_label == -1:
+            self.get_logger().warn("No clusters found")
+            return None, None, None
+
+        # Get the largest cluster
+        largest_cluster = np.array(clusters[largest_cluster_label])
+        centroid = np.mean(largest_cluster[:, 0], axis=0).astype(float)
+        avg_orientation = np.mean(largest_cluster[:, 1], axis=0).astype(float)
+        # Calculate the average covariance for the cluster
+        avg_covariance = (
+            np.sum(largest_cluster[:, 2], axis=0) / np.square(largest_cluster_size)
+        ).astype(float)
+        # self.get_logger().info(f"Cluster size: {len(largest_cluster)}, centroid: {centroid}")
+        return centroid, avg_orientation, avg_covariance
 
 
 def main(args=None):
