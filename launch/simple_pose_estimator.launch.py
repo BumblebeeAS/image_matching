@@ -1,8 +1,6 @@
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 
 from launch import LaunchDescription
-from launch.substitutions import PathJoinSubstitution
 
 
 def generate_launch_description():
@@ -18,25 +16,25 @@ def generate_launch_description():
                 executable="simple_pose_estimator_node",
                 name="simple_pose_estimator_node",
             ),
-            Node(
-                package="robot_localization",
-                executable="ukf_node",
-                name="ukf_se",
-                output="screen",
-                parameters=[
-                    PathJoinSubstitution(
-                        [
-                            FindPackageShare("image_matching"),
-                            "cfg",
-                            "image_matching_ukf.yaml",
-                        ]
-                    )
-                ],
-                # remappings=[
-                #     ("odometry/filtered", LaunchConfiguration("odom_ukf")),
-                #     ("set_pose", LaunchConfiguration("reset_pose_ukf")),
-                # ],
-            ),
+            # Node(
+            #     package="robot_localization",
+            #     executable="ukf_node",
+            #     name="ukf_se",
+            #     output="screen",
+            #     parameters=[
+            #         PathJoinSubstitution(
+            #             [
+            #                 FindPackageShare("image_matching"),
+            #                 "cfg",
+            #                 "image_matching_ukf.yaml",
+            #             ]
+            #         )
+            #     ],
+            #     # remappings=[
+            #     #     ("odometry/filtered", LaunchConfiguration("odom_ukf")),
+            #     #     ("set_pose", LaunchConfiguration("reset_pose_ukf")),
+            #     # ],
+            # ),
             Node(
                 package="image_transport",
                 executable="republish",
@@ -46,7 +44,10 @@ def generate_launch_description():
                 parameters=[{"out.jpeg_quality": 30}],
                 remappings=[
                     ("in", "/auv4/front_cam/image_matching"),
-                    ("out/compressed", "/auv4/front_cam/image_matching/compressed"),
+                    (
+                        "out/compressed",
+                        "/auv4/front_cam/image_matching/compressed",
+                    ),
                 ],
             ),
         ]

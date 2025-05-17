@@ -1,23 +1,20 @@
-import logging
 from collections import defaultdict
+import logging
 
+from bb_perception_msgs.msg import PointCorrespondencesStamped
 import cv2
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import Vector3
 import numpy as np
 import rclpy
-import tf2_ros
-from bb_perception_msgs.msg import PointCorrespondencesStamped
-from geometry_msgs.msg import (
-    Point,
-    PoseWithCovarianceStamped,
-    Quaternion,
-    TransformStamped,
-    Vector3,
-)
-from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo
 from sklearn.cluster import HDBSCAN
+import tf2_ros
 from transforms3d.quaternions import mat2quat
 
 from pose_estimator.PinholeCamera import PinholeCamera
@@ -93,7 +90,9 @@ def get_object_pose(
     return rvec, tvec
 
 
-def filter_by_homography(object_points: np.ndarray, image_points: np.ndarray) -> tuple:
+def filter_by_homography(
+    object_points: np.ndarray, image_points: np.ndarray
+) -> tuple:
     """Filter the object points and image points by homography,
     assuming that the object points are in the same plane.
 
@@ -177,28 +176,37 @@ def estimate_covariance(
 
 
 class SimplePoseEstimator(Node):
-
     def __init__(self):
         super().__init__("pose_estimator")
 
-        self.declare_parameter("camera_info_topic", "/auv4/front_cam/color/camera_info")
+        self.declare_parameter(
+            "camera_info_topic", "/auv4/front_cam/color/camera_info"
+        )
         self.declare_parameter("camera_frame_id", "auv4/front_cam_optical")
 
         camera_info_topic = (
-            self.get_parameter("camera_info_topic").get_parameter_value().string_value
+            self.get_parameter("camera_info_topic")
+            .get_parameter_value()
+            .string_value
         )
-        valid, front_camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
+        valid, front_camera_info = wait_for_message(
+            CameraInfo, self, camera_info_topic
+        )
         if not valid:
             raise ValueError("Failed to get camera info")
         else:
-            self.camera = PinholeCamera.from_camera_info(front_camera_info, rectified=False)
+            self.camera = PinholeCamera.from_camera_info(
+                front_camera_info, rectified=False
+            )
 
         self.camera_frame_id = (
-            self.get_parameter("camera_frame_id").get_parameter_value().string_value
+            self.get_parameter("camera_frame_id")
+            .get_parameter_value()
+            .string_value
         )
 
-        self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=30), node=self)
-        self.br = tf2_ros.StaticTransformBroadcaster(self)
+        self.br = tf2_ros.TransformBroadcaster(self)
+        self.cluster_tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         self.point_subscriber = self.create_subscription(
             PointCorrespondencesStamped,
@@ -213,17 +221,23 @@ class SimplePoseEstimator(Node):
             1,
         )
 
-        self.declare_parameter("num_detections", 10)  # number of detections before clustering
+        self.declare_parameter(
+            "num_detections", 50
+        )  # number of detections before clustering
         self.num_detections = (
-            self.get_parameter("num_detections").get_parameter_value().integer_value
+            self.get_parameter("num_detections")
+            .get_parameter_value()
+            .integer_value
         )
         self.hdb = HDBSCAN(
-            min_cluster_size=10,
+            min_cluster_size=25,
             allow_single_cluster=True,
             store_centers="centroid",
         )
         self.q_idx = 0
-        self.pos_cluster_q = [None] * self.num_detections
+        self.pos_cluster_q = [
+            (None, None, None) for i in range(self.num_detections)
+        ]
 
     def point_correspondences_callback(self, msg: PointCorrespondencesStamped):
         # TODO: Filter using clustering or Kalman
@@ -237,10 +251,14 @@ class SimplePoseEstimator(Node):
             )
             return
 
-        object_points, image_points = filter_by_homography(object_points, image_points)
+        object_points, image_points = filter_by_homography(
+            object_points, image_points
+        )
 
         try:
-            rvec, tvec = get_object_pose(self.camera, object_points, image_points)
+            rvec, tvec = get_object_pose(
+                self.camera, object_points, image_points
+            )
             R, _ = cv2.Rodrigues(rvec)
             t = tvec.squeeze()
         except Exception as e:
@@ -248,7 +266,9 @@ class SimplePoseEstimator(Node):
             return
 
         try:
-            covariance = estimate_covariance(object_points, rvec, tvec, self.camera)
+            covariance = estimate_covariance(
+                object_points, rvec, tvec, self.camera
+            )
         except np.linalg.LinAlgError as e:
             self.get_logger().warn(
                 f"Covariance estimation failed, inversion for FIM matrix failed: {e}"
@@ -262,7 +282,9 @@ class SimplePoseEstimator(Node):
         try:
             qx, qy, qz, qw = mat2quat(R)
         except np.linalg.LinAlgError as e:
-            self.get_logger().warn(f"Error in mat2quat, failed to convert R: {e}")
+            self.get_logger().warn(
+                f"Error in mat2quat, failed to convert R: {e}"
+            )
             return
 
         pose = PoseWithCovarianceStamped()
@@ -275,45 +297,82 @@ class SimplePoseEstimator(Node):
 
         # add clutering for pose
         pos_xyz = np.array([t[0], t[1], t[2]])
-        self.pos_cluster_q[self.q_idx] = (pos_xyz, [qx, qy, qz, qw], pose.pose.covariance)
-        if self.q_idx == self.num_detections:
+        self.pos_cluster_q[self.q_idx] = (
+            pos_xyz,
+            [qx, qy, qz, qw],
+            pose.pose.covariance,
+        )
+
+        if self.q_idx == (self.num_detections - 1):
             # do the clustering and publish the pose
             pose_xyz, q, cov = self.filter_by_clustering()
             if pose_xyz is not None:
                 pose.pose.covariance = cov
-                pose.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-                self.get_logger().info(f"Publishing posxyz: {pose_xyz} after clustering.")
-                pose.pose.pose.position = Point(x=pose_xyz[0], y=pose_xyz[1], z=pose_xyz[2])
+                pose.pose.pose.orientation = Quaternion(
+                    x=q[0], y=q[1], z=q[2], w=q[3]
+                )
+                self.get_logger().info(
+                    f"Publishing posxyz: {pose_xyz} after clustering."
+                )
+                pose.pose.pose.position = Point(
+                    x=pose_xyz[0], y=pose_xyz[1], z=pose_xyz[2]
+                )
+
+                transform_stamped = TransformStamped()
+                transform_stamped.header = msg.header
+                transform_stamped.child_frame_id = (
+                    msg.object_frame_id + "/clustered"
+                )
+                transform_stamped.transform.translation = Vector3(
+                    x=pose_xyz[0], y=pose_xyz[1], z=pose_xyz[2]
+                )
+                transform_stamped.transform.rotation = Quaternion(
+                    x=q[0], y=q[1], z=q[2], w=q[3]
+                )
+
+                self.cluster_tf_broadcaster.sendTransform(transform_stamped)
             else:
                 # we just reset the cluster q in this case
                 self.get_logger().warn("No clusters found")
             self.q_idx = 0
         else:
             self.q_idx += 1
-            return  # not enough detections
 
         self.pose_publisher.publish(pose)
 
         transform_stamped = TransformStamped()
         transform_stamped.header = msg.header
         transform_stamped.child_frame_id = msg.object_frame_id
-        transform_stamped.transform.translation = Vector3(x=t[0], y=t[1], z=t[2])
-        transform_stamped.transform.rotation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        transform_stamped.transform.translation = Vector3(
+            x=t[0], y=t[1], z=t[2]
+        )
+        transform_stamped.transform.rotation = Quaternion(
+            x=qx, y=qy, z=qz, w=qw
+        )
 
         self.br.sendTransform(transform_stamped)
 
-    def filter_by_clustering(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def filter_by_clustering(
+        self,
+    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
         """Filter the pose estimates by clustering.
 
         Returns:
             tuple[np.ndarray, np.ndarray, np.ndarray]: pose, (qx, qy, qz, qw), covariance
         """
-        self.hdb.fit([x[0] for x in self.pos_cluster_q])
+        to_fit = [x[0] for x in self.pos_cluster_q]
+        # self.get_logger().info(f"to_fit: {to_fit}")
+        self.hdb.fit(to_fit)
         labels = self.hdb.labels_
 
         clusters = defaultdict(list)
         for i, label in enumerate(labels):
             clusters[label].append(self.pos_cluster_q[i])
+
+        # cluster_sizes = list(map(len, clusters))
+
+        # self.get_logger().info(f"cluster sizes: {cluster_sizes}")
+        self.get_logger().info(f"cluster labels: {labels}")
 
         largest_cluster_size = 0
         largest_cluster_label = -1
@@ -323,28 +382,32 @@ class SimplePoseEstimator(Node):
                 continue
             if len(cluster) > largest_cluster_size:
                 largest_cluster_size = len(cluster)
-                largest_cluster = label
+                largest_cluster_label = label
         if largest_cluster_label == -1:
             self.get_logger().warn("No clusters found")
-            return None, None, None
+            return (None, None, None)
 
         # Get the largest cluster
-        largest_cluster = np.array(clusters[largest_cluster_label])
-        centroid = np.mean(largest_cluster[:, 0], axis=0).astype(float)
-        avg_orientation = np.mean(largest_cluster[:, 1], axis=0).astype(float)
+        largest_cluster = clusters[largest_cluster_label]
+        centroid = np.mean(
+            np.array([x[0] for x in largest_cluster]), axis=0
+        ).astype(float)
+        avg_orientation = np.mean(
+            np.array([x[1] for x in largest_cluster]), axis=0
+        ).astype(float)
         # Calculate the average covariance for the cluster
         avg_covariance = (
-            np.sum(largest_cluster[:, 2], axis=0) / np.square(largest_cluster_size)
+            np.sum(np.array([x[2] for x in largest_cluster]), axis=0)
+            / np.square(largest_cluster_size)
         ).astype(float)
         # self.get_logger().info(f"Cluster size: {len(largest_cluster)}, centroid: {centroid}")
-        return centroid, avg_orientation, avg_covariance
+        return (centroid, avg_orientation, avg_covariance)
 
 
 def main(args=None):
     logging.basicConfig(level=logging.INFO)
     rclpy.init(args=args)
     node = SimplePoseEstimator()
-    tf2_ros.TransformListener(node.tf_buffer, node, spin_thread=False)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
