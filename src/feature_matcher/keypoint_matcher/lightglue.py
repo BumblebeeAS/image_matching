@@ -1,11 +1,11 @@
 import logging
 import threading
-from typing import Dict
+from typing import Dict, Tuple
 
-from lightglue import LightGlue
 import torch
 
 from feature_matcher.keypoints_match_producer import Keypoints
+from feature_matcher.models.LightGlue.lightglue import LightGlue
 from feature_matcher.two_stage_match_producer import KeypointMatcher
 
 
@@ -25,9 +25,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
         logging.info(self.config)
 
         self.device = (
-            "cuda"
-            if torch.cuda.is_available() and self.config["cuda"]
-            else "cpu"
+            "cuda" if torch.cuda.is_available() and self.config["cuda"] else "cpu"
         )
 
         assert self.config["weights"] in ["disk", "superpoint"]
@@ -38,11 +36,9 @@ class LightglueKeypointMatcher(KeypointMatcher):
         )
         self.lock = threading.Lock()
 
-    def preprocess(
-        self, keypoints1: Keypoints, keypoints2: Keypoints
-    ) -> Keypoints:
-        data = {}
-        data["image_size0"] = (
+    def preprocess(self, keypoints1: Keypoints, keypoints2: Keypoints) -> Keypoints:
+        data0, data1 = {}, {}
+        data0["image_size"] = (
             torch.tensor(
                 (keypoints1.image_size[1], keypoints1.image_size[0]),
                 device=self.device,
@@ -50,7 +46,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
             .float()
             .unsqueeze(0)
         )
-        data["image_size1"] = (
+        data1["image_size"] = (
             torch.tensor(
                 (keypoints2.image_size[1], keypoints2.image_size[0]),
                 device=self.device,
@@ -59,53 +55,33 @@ class LightglueKeypointMatcher(KeypointMatcher):
             .unsqueeze(0)
         )
 
-        data["scores0"] = (
-            torch.from_numpy(keypoints1.scores)
-            .float()
-            .to(self.device)
-            .unsqueeze(0)
+        data0["scores"] = (
+            torch.from_numpy(keypoints1.scores).float().to(self.device).unsqueeze(0)
         )
-        data["keypoints0"] = (
-            torch.from_numpy(keypoints1.keypoints)
-            .float()
-            .to(self.device)
-            .unsqueeze(0)
+        data0["keypoints"] = (
+            torch.from_numpy(keypoints1.keypoints).float().to(self.device).unsqueeze(0)
         )
-        data["descriptors0"] = (
+        data0["descriptors"] = (
             torch.from_numpy(keypoints1.descriptors)
             .float()
             .to(self.device)
             .unsqueeze(0)
         )
 
-        data["scores1"] = (
-            torch.from_numpy(keypoints2.scores)
-            .float()
-            .to(self.device)
-            .unsqueeze(0)
+        data1["scores"] = (
+            torch.from_numpy(keypoints2.scores).float().to(self.device).unsqueeze(0)
         )
-        data["keypoints1"] = (
-            torch.from_numpy(keypoints2.keypoints)
-            .float()
-            .to(self.device)
-            .unsqueeze(0)
+        data1["keypoints"] = (
+            torch.from_numpy(keypoints2.keypoints).float().to(self.device).unsqueeze(0)
         )
-        data["descriptors1"] = (
+        data1["descriptors"] = (
             torch.from_numpy(keypoints2.descriptors)
             .float()
             .to(self.device)
             .unsqueeze(0)
         )
 
-        # Dummy, because they need it despite being optional
-        data["image0"] = torch.zeros(
-            (1, 3, 1, 1),
-            device=self.device,
-        )
-        data["image1"] = torch.zeros(
-            (1, 3, 1, 1),
-            device=self.device,
-        )
+        data = {"image0": data0, "image1": data1}
 
         return data
 
@@ -120,7 +96,7 @@ class LightglueKeypointMatcher(KeypointMatcher):
         keypoints1: Keypoints,
         keypoints2: Keypoints,
         num_keypoints: int = 20,
-    ) -> Dict:
+    ) -> Tuple[Keypoints, Keypoints]:
         preprocessed = self.preprocess(keypoints1, keypoints2)
 
         with torch.no_grad():
