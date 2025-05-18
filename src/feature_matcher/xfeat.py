@@ -26,11 +26,12 @@ class TemplateWithKeypoints:
     They are stored as tensors to eliminate overhead from copying between CPU and GPU.
 
     Attributes:
-        image (torch.Tensor): The image of the template.
-        keypoints (list): The keypoints of the template.
-        descriptors (torch.Tensor): The descriptors of the template.
+        image (MatLike): The image of the template.
         dimensions (tuple): The dimensions of the template.
         offset (tuple): The offset of the template.
+        keypoints (torch.Tensor): The keypoints of the template.
+        descriptors (torch.Tensor): The descriptors of the template.
+        scores (torch.Tensor): The scores of the keypoints.
     """
 
     image: MatLike
@@ -38,6 +39,7 @@ class TemplateWithKeypoints:
     offset: tuple
     keypoints: Tensor
     descriptors: Tensor
+    scores: Tensor
 
 
 class XFeatMatcher:
@@ -66,6 +68,7 @@ class XFeatMatcher:
         template_output = self.model.detectAndCompute(template_image)[0]
         template_kps = template_output["keypoints"]
         template_descs = template_output["descriptors"]
+        template_scores = template_output["scores"]
 
         template = TemplateWithKeypoints(
             image=template_image,
@@ -73,6 +76,7 @@ class XFeatMatcher:
             offset=template_offset,
             keypoints=template_kps,
             descriptors=template_descs,
+            scores=template_scores,
         )
         return template
 
