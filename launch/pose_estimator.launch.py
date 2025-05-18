@@ -55,7 +55,7 @@ def generate_launch_description():
                 "front_camera_topic",
                 #   default_value='/auv4/front_cam/image_rect_color/bright/compressed',
                 #   default_value='/wamv/sensors/cameras/left_cam_sensor/optical/image_rect_color/compressed',
-                default_value="/auv4/front_cam/color/image_rect/compressed",
+                default_value="/auv4/front_cam/color/image/compressed",
                 description="Front cam topic",
             ),
             DeclareLaunchArgument(
@@ -65,7 +65,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "bottom_camera_topic",
-                default_value="/auv4/bot_cam/color/image_rect/compressed",
+                default_value="/auv4/bot_cam/color/image/compressed",
             ),
             DeclareLaunchArgument(
                 "bottom_camera_info_topic",
