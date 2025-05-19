@@ -53,7 +53,7 @@ class SimpleMatcherNode(Node):
         self.cv_bridge = CvBridge()
         self.img_subscriber = self.create_subscription(
             CompressedImage,
-            "/auv4/front_cam/color/image/compressed",
+            "/auv4/front_cam/color/image/brighten/compressed",
             self.image_callback,
             1,
         )
@@ -112,7 +112,9 @@ class SimpleMatcherNode(Node):
         scale_img = img.shape[1] / _img.shape[1]
 
         if len(template_mkps) < 4 or len(image_mkps) < 4:
-            self.get_logger().warn(f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required.")
+            self.get_logger().warn(
+                f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required."
+            )
             return
         canvas: MatLike = warp_corners_and_draw_matches(
             template_mkps // scale_template, image_mkps // scale_img, _template, _img
