@@ -7,12 +7,12 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
 
 def generate_launch_description():
-    camera_name = LaunchConfiguration('camera_name', default='front_cam')
+    camera_name = LaunchConfiguration("camera_name", default="front_cam")
         
     return LaunchDescription([
         DeclareLaunchArgument(
-            'camera_name',
-            default_value='front_cam',
+            "camera_name",
+            default_value="front_cam",
         ),
 
         
@@ -20,13 +20,13 @@ def generate_launch_description():
             package="image_matching",
             executable="simple_matcher_node",
             name="simple_matcher_node",
-            parameters=[{'camera_name': camera_name}]
+            parameters=[{"camera_name": camera_name}]
         ),
         Node(
             package="image_matching",
             executable="simple_pose_estimator_node",
             name="simple_pose_estimator_node",
-            parameters=[{'camera_name': camera_name}]
+            parameters=[{"camera_name": camera_name}]
         ),
         Node(
             package="robot_localization",
@@ -55,8 +55,8 @@ def generate_launch_description():
             output="screen",
             parameters=[{"out.jpeg_quality": 30}],
             remappings=[
-                ("in", PathJoinSubstitution(['/auv4', camera_name, 'image_matching'])),
-                ("out/compressed", PathJoinSubstitution(['/auv4', camera_name, 'image_matching/compressed'])),
+                ("in", PathJoinSubstitution(["auv4", camera_name, "image_matching"])),
+                ("out/compressed", PathJoinSubstitution(["/auv4", camera_name, "image_matching/compressed"])),
             ],
         ),
     ])
