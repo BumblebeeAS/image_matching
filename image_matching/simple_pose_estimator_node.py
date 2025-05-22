@@ -179,8 +179,11 @@ class SimplePoseEstimator(Node):
     def __init__(self):
         super().__init__("pose_estimator")
 
-        self.declare_parameter("camera_info_topic", "/auv4/front_cam/color/camera_info")
-        self.declare_parameter("camera_frame_id", "auv4/front_cam_optical")
+        self.declare_parameter("camera_name", "front_cam")
+        camera_name = self.get_parameter("camera_name").get_parameter_value().string_value
+
+        self.declare_parameter("camera_info_topic", f"/auv4/{camera_name}/color/camera_info")
+        self.declare_parameter("camera_frame_id", f"auv4/{camera_name}_optical")
 
         camera_info_topic = (
             self.get_parameter("camera_info_topic").get_parameter_value().string_value
@@ -202,14 +205,14 @@ class SimplePoseEstimator(Node):
 
         self.point_subscriber = self.create_subscription(
             PointCorrespondencesStamped,
-            "/auv4/front_cam/image_matching/point_correspondences",
+            f"/auv4/{camera_name}/image_matching/point_correspondences",
             self.point_correspondences_callback,
             1,
         )
 
         self.pose_publisher = self.create_publisher(
             PoseWithCovarianceStamped,
-            "/auv4/front_cam/image_matching/pose",
+            f"/auv4/{camera_name}/image_matching/pose",
             1,
         )
 

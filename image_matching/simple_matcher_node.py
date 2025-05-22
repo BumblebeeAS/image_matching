@@ -29,6 +29,9 @@ class SimpleMatcherNode(Node):
 
         self.matcher = XFeatMatcher()
 
+        self.declare_parameter("camera_name", "front_cam")
+        camera_name = self.get_parameter("camera_name").get_parameter_value().string_value
+
         default_templates_dir = (
             Path(get_package_share_directory("image_matching"))
             / "templates"
@@ -53,18 +56,18 @@ class SimpleMatcherNode(Node):
         self.cv_bridge = CvBridge()
         self.img_subscriber = self.create_subscription(
             CompressedImage,
-            "/auv4/front_cam/color/image/compressed",
+            f"/auv4/{camera_name}/color/image/compressed",
             self.image_callback,
             1,
         )
 
         self.points_publisher = self.create_publisher(
             PointCorrespondencesStamped,
-            "/auv4/front_cam/image_matching/point_correspondences",
+            f"/auv4/{camera_name}/image_matching/point_correspondences",
             10,
         )
         self.img_publisher = self.create_publisher(
-            Image, "/auv4/front_cam/image_matching", 10
+            Image, f"/auv4/{camera_name}/image_matching", 10
         )
 
         # Toggle Template Service
