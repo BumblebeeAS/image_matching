@@ -316,7 +316,7 @@ def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
     except cv2.error as e:
         # TODO: Handle cv2.error: OpenCV(4.11.0) ... error: (-215:Assertion failed) scn + 1 == m.cols in function 'perspectiveTransform'
         print(f"Error in perspectiveTransform: {e}")
-        return img1
+        return get_image_match_empty_canvas(img1, img2)
 
     # Draw the warped corners in image2
     img2_with_corners = img2.copy()
