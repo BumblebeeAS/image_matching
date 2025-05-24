@@ -28,5 +28,10 @@ enabled: true"
 
 See `/auv4/front_cam/image_matching/compressed` for visualization.
 
-Credits:
-https://github.com/Shiaoming/Python-VO
+## Notes
+
+Use XFeat for general, upright camera matching. For matching between images with large orientation differences (e.g., drone imagery), try SIFT-FLANN.
+
+## References
+
+(Outdated) https://github.com/Shiaoming/Python-VO
