@@ -198,7 +198,6 @@ class SimplePoseEstimator(Node):
         )
 
         self.br = tf2_ros.TransformBroadcaster(self)
-        self.cluster_tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         self.point_subscriber = self.create_subscription(
             PointCorrespondencesStamped,
