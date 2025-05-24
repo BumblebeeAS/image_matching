@@ -25,4 +25,6 @@ ukf_se:
 
     use_control: false
     smooth_lagged_data: true
+    reset_on_time_jump: true
+    predict_to_current_time: true
     

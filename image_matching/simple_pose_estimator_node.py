@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -12,7 +13,6 @@ from geometry_msgs.msg import (
     TransformStamped,
     Vector3,
 )
-from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo
@@ -191,8 +191,7 @@ class SimplePoseEstimator(Node):
             self.camera = PinholeCamera.from_camera_info(camera_info, rectified=False)
             self.camera_frame_id = camera_info.header.frame_id
 
-        self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=30), node=self)
-        self.br = tf2_ros.StaticTransformBroadcaster(self)
+        self.br = tf2_ros.TransformBroadcaster(self)
 
         self.point_subscriber = self.create_subscription(
             PointCorrespondencesStamped,
@@ -251,6 +250,7 @@ class SimplePoseEstimator(Node):
         pose.pose.pose.position = Point(x=t[0], y=t[1], z=t[2])
         pose.pose.pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
         pose.pose.covariance = covariance.flatten().tolist()
+
         self.pose_publisher.publish(pose)
 
         transform_stamped = TransformStamped()
@@ -266,7 +266,6 @@ def main(args=None):
     logging.basicConfig(level=logging.INFO)
     rclpy.init(args=args)
     node = SimplePoseEstimator()
-    tf2_ros.TransformListener(node.tf_buffer, node, spin_thread=False)
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
