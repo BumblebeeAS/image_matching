@@ -14,7 +14,11 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, Image
 
-from feature_matcher.tools import get_template_specs, warp_corners_and_draw_matches
+from feature_matcher.tools import (
+    get_image_match_empty_canvas,
+    get_template_specs,
+    warp_corners_and_draw_matches,
+)
 from feature_matcher.xfeat import XFeatMatcher
 from utils.ros_np_multiarray import to_multiarray_f64
 
@@ -27,22 +31,22 @@ class SimpleMatcherNode(Node):
     def __init__(self):
         super().__init__("simple_pose_estimator_node")
 
-        self.matcher = XFeatMatcher()
-
-        self.declare_parameter("camera_name", "front_cam")
-        camera_name = self.get_parameter("camera_name").get_parameter_value().string_value
-
         default_templates_dir = (
             Path(get_package_share_directory("image_matching"))
             / "templates"
             / "robosub25"
         )
         self.declare_parameter("templates_dir", default_templates_dir.as_posix())
+        self.declare_parameter(
+            "toggle_template_topic", "image_matching/toggle_template"
+        )
+        self.declare_parameter("input_compressed_image_topic", "color/image/compressed")
+
+        self.matcher = XFeatMatcher()
 
         templates_dir = Path(
             self.get_parameter("templates_dir").get_parameter_value().string_value
         )
-
         template_json: Dict[str, Dict] = json.loads(
             open(templates_dir / "templates.json", "r").read()
         )
@@ -54,26 +58,20 @@ class SimpleMatcherNode(Node):
         self.matcher.set_all_templates(self.template_specs)
 
         self.cv_bridge = CvBridge()
+        input_compressed_image_topic = (
+            self.get_parameter("input_compressed_image_topic")
+            .get_parameter_value()
+            .string_value
+        )
         self.img_subscriber = self.create_subscription(
-            CompressedImage,
-            f"/auv4/{camera_name}/color/image/compressed",
-            self.image_callback,
-            1,
+            CompressedImage, input_compressed_image_topic, self.image_callback, 1
         )
-
         self.points_publisher = self.create_publisher(
-            PointCorrespondencesStamped,
-            f"/auv4/{camera_name}/image_matching/point_correspondences",
-            10,
+            PointCorrespondencesStamped, "image_matching/point_correspondences", 10
         )
-        self.img_publisher = self.create_publisher(
-            Image, f"/auv4/{camera_name}/image_matching", 10
-        )
+        self.img_publisher = self.create_publisher(Image, "image_matching/image", 10)
 
         # Toggle Template Service
-        self.declare_parameter(
-            "toggle_template_topic", "/auv4/image_matching/toggle_template"
-        )
         self.template_name: None | str = None
         toggle_template_topic = (
             self.get_parameter("toggle_template_topic")
@@ -115,8 +113,15 @@ class SimpleMatcherNode(Node):
         scale_img = img.shape[1] / _img.shape[1]
 
         if len(template_mkps) < 4 or len(image_mkps) < 4:
-            self.get_logger().warn(f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required.")
+            self.get_logger().warn(
+                f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required."
+            )
+            canvas = get_image_match_empty_canvas(_template, _img)
+            self.img_publisher.publish(
+                self.cv_bridge.cv2_to_imgmsg(canvas, encoding="bgr8")
+            )
             return
+
         canvas: MatLike = warp_corners_and_draw_matches(
             template_mkps // scale_template, image_mkps // scale_img, _template, _img
         )
