@@ -1,8 +1,7 @@
-from launch_ros.actions import Node, PushRosNamespace
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node, PushRosNamespace
 
 
 def generate_launch_description():
@@ -30,7 +29,7 @@ def generate_launch_description():
                 name="simple_matcher_node",
             ),
             Node(
-                package="image_matching",
+                package="pose_estimator",
                 executable="simple_pose_estimator_node",
                 name="simple_pose_estimator_node",
                 parameters=[{"camera_info_topic": "color/camera_info"}],

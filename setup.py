@@ -11,7 +11,6 @@ setup(
     packages=[package_name] + find_packages(where="./src"),
     package_dir={
         "feature_matcher": "src/feature_matcher",
-        "pose_estimator": "src/pose_estimator",
         "keypoint_matcher": "src/feature_matcher/keypoint_matcher",
         "keypoint_producer": "src/feature_matcher/keypoint_producer",
         "utils": "src/utils",
@@ -72,11 +71,9 @@ setup(
     entry_points={
         "console_scripts": [
             "detector = image_matching.detector:main",
-            "pose_estimator = image_matching.pose_estimator_node:main",
             "test_xfeat = image_matching.test_xfeat:main",
             "xfeat_output = image_matching.xfeat_output:main",
             "simple_matcher_node = image_matching.simple_matcher_node:main",
-            "simple_pose_estimator_node = image_matching.simple_pose_estimator_node:main",
         ],
     },
 )
