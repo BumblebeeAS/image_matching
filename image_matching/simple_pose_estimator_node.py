@@ -179,28 +179,17 @@ class SimplePoseEstimator(Node):
     def __init__(self):
         super().__init__("pose_estimator")
 
-        self.declare_parameter("camera_name", "front_cam")
-        camera_name = (
-            self.get_parameter("camera_name").get_parameter_value().string_value
-        )
-
         self.declare_parameter("camera_info_topic", "camera_info")
-        self.declare_parameter("camera_frame_id", f"auv4/{camera_name}_optical")
-
         camera_info_topic = (
             self.get_parameter("camera_info_topic").get_parameter_value().string_value
         )
-        valid, front_camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
+        valid, camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
         if not valid:
             raise ValueError("Failed to get camera info")
         else:
-            self.camera = PinholeCamera.from_camera_info(
-                front_camera_info, rectified=False
-            )
-
-        self.camera_frame_id = (
-            self.get_parameter("camera_frame_id").get_parameter_value().string_value
-        )
+            camera_info: CameraInfo
+            self.camera = PinholeCamera.from_camera_info(camera_info, rectified=False)
+            self.camera_frame_id = camera_info.header.frame_id
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=30), node=self)
         self.br = tf2_ros.StaticTransformBroadcaster(self)
