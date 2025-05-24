@@ -179,38 +179,30 @@ class SimplePoseEstimator(Node):
     def __init__(self):
         super().__init__("pose_estimator")
 
-        self.declare_parameter("camera_info_topic", "/auv4/front_cam/color/camera_info")
-        self.declare_parameter("camera_frame_id", "auv4/front_cam_optical")
-
+        self.declare_parameter("camera_info_topic", "camera_info")
         camera_info_topic = (
             self.get_parameter("camera_info_topic").get_parameter_value().string_value
         )
-        valid, front_camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
+        valid, camera_info = wait_for_message(CameraInfo, self, camera_info_topic)
         if not valid:
             raise ValueError("Failed to get camera info")
         else:
-            self.camera = PinholeCamera.from_camera_info(
-                front_camera_info, rectified=False
-            )
-
-        self.camera_frame_id = (
-            self.get_parameter("camera_frame_id").get_parameter_value().string_value
-        )
+            camera_info: CameraInfo
+            self.camera = PinholeCamera.from_camera_info(camera_info, rectified=False)
+            self.camera_frame_id = camera_info.header.frame_id
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=30), node=self)
         self.br = tf2_ros.StaticTransformBroadcaster(self)
 
         self.point_subscriber = self.create_subscription(
             PointCorrespondencesStamped,
-            "/auv4/front_cam/image_matching/point_correspondences",
+            "image_matching/point_correspondences",
             self.point_correspondences_callback,
             1,
         )
 
         self.pose_publisher = self.create_publisher(
-            PoseWithCovarianceStamped,
-            "/auv4/front_cam/image_matching/pose",
-            1,
+            PoseWithCovarianceStamped, "image_matching/pose", 1
         )
 
     def point_correspondences_callback(self, msg: PointCorrespondencesStamped):

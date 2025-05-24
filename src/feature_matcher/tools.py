@@ -278,6 +278,24 @@ def plot_matches(image0, image1, kpts0, kpts1, scores=None, layout="lr"):
     return out
 
 
+def get_image_match_empty_canvas(template: MatLike, img: MatLike) -> MatLike:
+    """
+    Concatenates template and input image horizontally, with template
+    on the left.
+
+    Args:
+        template (MatLike): Template image.
+        img (MatLike): Input image.
+
+    Returns:
+        MatLike: Template and input image concatenated.
+    """
+    combined = cv2.drawMatches(
+        template, [], img, [], [], None, matchColor=(0, 255, 0), flags=2
+    )
+    return combined
+
+
 # based on: https://github.com/verlab/accelerated_features/blob/main/notebooks/xfeat%2Blg_torch_hub.ipynb
 def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
     # Calculate the Homography matrix
@@ -298,7 +316,7 @@ def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
     except cv2.error as e:
         # TODO: Handle cv2.error: OpenCV(4.11.0) ... error: (-215:Assertion failed) scn + 1 == m.cols in function 'perspectiveTransform'
         print(f"Error in perspectiveTransform: {e}")
-        return img1
+        return get_image_match_empty_canvas(img1, img2)
 
     # Draw the warped corners in image2
     img2_with_corners = img2.copy()
