@@ -120,7 +120,9 @@ class XFeatMatcher:
         if template.keypoints.shape[0] == 0 or image_data["keypoints"].shape[0] == 0:
             return np.array([])[:, np.newaxis], np.array([])[:, np.newaxis]
 
-        mkpts_0, mkpts_1, _ = self.model.match_lighterglue(template_data, image_data)
+        mkpts_0, mkpts_1, _ = self.model.match_lighterglue(
+            template_data, image_data, min_conf=0.01
+        )
 
         return mkpts_0, mkpts_1
 

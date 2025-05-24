@@ -22,6 +22,12 @@ def generate_launch_description():
                 executable="simple_pose_estimator_node",
                 name="simple_pose_estimator_node",
             ),
+            Node(
+                package="image_matching",
+                executable="image_brighten_node",
+                name="image_brighten_node",
+                parameters=[{"brightness_factor": 1.0}],
+            ),
             # Node(
             #     package="robot_localization",
             #     executable="ukf_node",
@@ -36,6 +42,10 @@ def generate_launch_description():
             #             ]
             #         )
             #     ],
+            #     # remappings=[
+            #     #     ("odometry/filtered", LaunchConfiguration("odom_ukf")),
+            #     #     ("set_pose", LaunchConfiguration("reset_pose_ukf")),
+            #     # ],
             # ),
             Node(
                 package="image_transport",

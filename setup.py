@@ -77,6 +77,7 @@ setup(
             "xfeat_output = image_matching.xfeat_output:main",
             "simple_matcher_node = image_matching.simple_matcher_node:main",
             "simple_pose_estimator_node = image_matching.simple_pose_estimator_node:main",
+            "image_brighten_node = image_matching.image_brighten_node:main",
         ],
     },
 )
