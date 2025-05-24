@@ -1,10 +1,9 @@
 import numpy as np
+from sensor_msgs.msg import CameraInfo
 
 
 class PinholeCamera(object):
-    def __init__(
-        self, frame_id, width, height, fx, fy, cx, cy, *distortion_params
-    ):
+    def __init__(self, frame_id, width, height, fx, fy, cx, cy, *distortion_params):
         self.frame_id = frame_id
         self.width = width
         self.height = height
@@ -17,7 +16,7 @@ class PinholeCamera(object):
         self.distortion = abs(distortion_params[0]) > 0.0000001
         self.d = np.array(distortion_params, dtype=np.float32)
 
-    def from_camera_info(camera_info, rectified=False):
+    def from_camera_info(camera_info: CameraInfo, rectified=False):
         if rectified:
             return PinholeCamera(
                 camera_info.header.frame_id,
@@ -41,9 +40,7 @@ class PinholeCamera(object):
             )
 
     def camera_matrix(self):
-        return np.array(
-            [[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]]
-        )
+        return np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]])
 
     def dist_coeffs(self):
         return self.d

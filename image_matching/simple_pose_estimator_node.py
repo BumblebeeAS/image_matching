@@ -27,7 +27,7 @@ def get_object_pose(
     object_points: np.ndarray,
     image_points: np.ndarray,
     max_reprojection_error: float = 2.0,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Get the object pose from the camera and point correspondences.
 
     Args:
@@ -37,7 +37,7 @@ def get_object_pose(
         max_reprojection_error (float): Maximum reprojection error for RANSAC.
 
     Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray]: (R, t, inliers)
+        tuple[np.ndarray, np.ndarray]: (R, t)
 
     Raises:
         ValueError: If the number of object points is less than 4.
