@@ -40,7 +40,7 @@ class SimpleMatcherNode(Node):
         self.declare_parameter(
             "toggle_template_topic", "image_matching/toggle_template"
         )
-        self.declare_parameter("input_compressed_image_topic", "color/image/compressed")
+        self.declare_parameter("input_image_topic", "image")
 
         self.matcher = XFeatMatcher()
 
@@ -58,13 +58,11 @@ class SimpleMatcherNode(Node):
         self.matcher.set_all_templates(self.template_specs)
 
         self.cv_bridge = CvBridge()
-        input_compressed_image_topic = (
-            self.get_parameter("input_compressed_image_topic")
-            .get_parameter_value()
-            .string_value
+        input_image_topic = (
+            self.get_parameter("input_image_topic").get_parameter_value().string_value
         )
         self.img_subscriber = self.create_subscription(
-            CompressedImage, input_compressed_image_topic, self.image_callback, 1
+            Image, input_image_topic, self.image_callback, 1
         )
         self.points_publisher = self.create_publisher(
             PointCorrespondencesStamped, "image_matching/point_correspondences", 10
@@ -84,11 +82,11 @@ class SimpleMatcherNode(Node):
             self.toggle_template_callback,
         )
 
-    def image_callback(self, msg: CompressedImage):
+    def image_callback(self, msg: Image) -> None:
         if self.template_name is None:
             return
 
-        img: MatLike = self.cv_bridge.compressed_imgmsg_to_cv2(msg)
+        img: MatLike = self.cv_bridge.imgmsg_to_cv2(msg)
         template_mkps, image_mkps = self.matcher.get_matches(self.template_name, img)
 
         # Send 3D object - 2D image correspondences
