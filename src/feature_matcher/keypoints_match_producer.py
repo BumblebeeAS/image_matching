@@ -321,7 +321,7 @@ def get_keypoints_match_producer(
         (None, "coarse_loftr"),
         (None, "loftr_ts"),
         (None, "dkm"),
-        ("xfeat", "xfeat")
+        ("xfeat", "xfeat"),
     ]
     if (extractor, matcher) not in valid_combinations:
         raise ValueError(
@@ -366,9 +366,9 @@ def get_keypoints_match_producer(
         from feature_matcher.keypoint_producer import DALFKeypointProducer
 
         return DALFKeypointProducer(config)
-    
+
     def get_xfeat_extractor(config):
-        from feature_matcher.keypoint_producer import XFeatKeypointProducer
+        from feature_matcher.keypoint_producer.xfeat import XFeatKeypointProducer
 
         return XFeatKeypointProducer(config)
 
@@ -450,14 +450,14 @@ def get_keypoints_match_producer(
         "alike": get_alike,
         "keyaffhard": get_keyaffhard,
         "dalf": get_dalf,
-        "xfeat": get_xfeat_extractor
+        "xfeat": get_xfeat_extractor,
     }
     matchers = {
         "superglue": get_superglue,
         "bf": get_bf,
         "flann": get_flann,
         "lightglue": get_lightglue,
-        "xfeat": get_xfeat_matcher
+        "xfeat": get_xfeat_matcher,
     }
     extractor_matcher = {
         "loftr": get_loftr,

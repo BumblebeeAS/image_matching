@@ -1,55 +1,37 @@
-## Migration in progress for Humble Branch
-
-# SuperGlue ROS
-ROS wrapper for SuperGlue and SuperPoint models
-
- - SuperGlue: [paper](https://arxiv.org/abs/1911.11763)
- - SuperPoint: [paper](https://arxiv.org/abs/1712.07629)
-
-You can find **the utilization of this module** in [this](https://github.com/KopanevPavel/runbot_custom_localization) repository in the frontend part of the visual-inertial SLAM system
+# Image matching
 
 ## System
- - ROS2 Humble (with python3 support)
- - Pytorch
- - Numpy
- - OpenCV
- - CUDA (highly recommended)
 
-## Usage
+- ROS2 Humble
+- Pytorch
+- Numpy
+- OpenCV
+- CUDA
 
-Download and build:
-```sh
-mkdir catkin_ws
-cd catkin_ws
-mkdir src
-cd src
-git clone --recursive https://github.com/KopanevPavel/SuperGlue_ROS
-cd ..
-catkin build
-source devel/setup.bash
+## Quickstart
+
+In one terminal:
+
+```bash
+source install/setup.bash
+ros2 launch image_matching simple_pose_estimator.launch.py
 ```
 
-Add to python path:
-```sh
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS/models/SuperGluePretrainedNetwork
-export PYTHONPATH=$PYTHONPATH:/home/jetson/SLAM/runbot_custom_localization/frontend/SuperGlue_ROS/src/SuperGlue_ROS/models/SuperPointPretrainedNetwork
+In another terminal:
+
+```bash
+source install/setup.bash
+ros2 service call /auv4/image_matching/toggle_template bb_msgs/srv/IMPoseEstimatorToggleTemplate "template_name: 'Task04_Tagging_01.png'
+camera_frame_id: 'auv4/front_cam_optical'
+enabled: true"
 ```
 
-Run SuperPoint detector:
-```sh
-rosrun SuperGlue_ROS detector_node
-```
+See `/auv4/front_cam/image_matching/compressed` for visualization.
 
-Run SuperGlue matcher:
-```sh
-rosrun SuperGlue_ROS matcher_node
-```
+## Notes
 
-*The matcher_node node publishes matching result as string message transformed via json*
+Use XFeat for general, upright camera matching. For matching between images with large orientation differences (e.g., drone imagery), try SIFT-FLANN.
 
-*Subscriber example (string -> numpy array) could be found in vo_node node*
+## References
 
-
-Credits:
-https://github.com/Shiaoming/Python-VO
+(Outdated) https://github.com/Shiaoming/Python-VO
