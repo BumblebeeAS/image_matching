@@ -5,14 +5,14 @@ from typing import Dict
 import numpy as np
 import rclpy
 from ament_index_python import get_package_share_directory
-from bb_msgs.srv import IMPoseEstimatorToggleTemplate
 from bb_perception_msgs.msg import PointCorrespondencesStamped
+from bb_perception_msgs.srv import IMPoseEstimatorToggleTemplate
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
 from imutils import resize
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import CompressedImage, Image
+from sensor_msgs.msg import Image
 
 from feature_matcher.tools import (
     get_image_match_empty_canvas,
