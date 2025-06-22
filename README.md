@@ -14,19 +14,19 @@ In one terminal:
 
 ```bash
 source install/setup.bash
-ros2 launch image_matching simple_pose_estimator.launch.py
+ros2 run image_matching simple_matcher_node
 ```
 
 In another terminal:
 
 ```bash
 source install/setup.bash
-ros2 service call /auv4/image_matching/toggle_template bb_msgs/srv/IMPoseEstimatorToggleTemplate "template_name: 'Task04_Tagging_01.png'
+ros2 service call /image_matching/toggle_template bb_perception_msgs/srv/IMPoseEstimatorToggleTemplate "template_name: 'Task04_Tagging_01.png'
 camera_frame_id: 'auv4/front_cam_optical'
 enabled: true"
 ```
 
-See `/auv4/front_cam/image_matching/compressed` for visualization.
+See `image_matching/image` for visualization. Point correspondences are published at `image_matching/point_correspondences`.
 
 ## Notes
 
