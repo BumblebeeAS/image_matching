@@ -9,22 +9,17 @@ from bb_perception_msgs.msg import PointCorrespondencesStamped
 from bb_perception_msgs.srv import IMPoseEstimatorToggleTemplate
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
-from imutils import resize
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import Image
-
 from feature_matcher.tools import (
     get_image_match_empty_canvas,
     get_template_specs,
     warp_corners_and_draw_matches,
 )
 from feature_matcher.xfeat import XFeatMatcher
+from imutils import resize
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Image
 from utils.ros_np_multiarray import to_multiarray_f64
-
-custom_qos = QoSProfile(
-    reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=1
-)  # Reliable due to image transport, will change to best effort soon
 
 
 class SimpleMatcherNode(Node):
@@ -62,12 +57,16 @@ class SimpleMatcherNode(Node):
             self.get_parameter("input_image_topic").get_parameter_value().string_value
         )
         self.img_subscriber = self.create_subscription(
-            Image, input_image_topic, self.image_callback, 1
+            Image, input_image_topic, self.image_callback, qos_profile_sensor_data
         )
         self.points_publisher = self.create_publisher(
-            PointCorrespondencesStamped, "image_matching/point_correspondences", 10
+            PointCorrespondencesStamped,
+            "image_matching/point_correspondences",
+            qos_profile_sensor_data,
         )
-        self.img_publisher = self.create_publisher(Image, "image_matching/image", 10)
+        self.img_publisher = self.create_publisher(
+            Image, "image_matching/image", qos_profile_sensor_data
+        )
 
         # Toggle Template Service
         self.template_name: None | str = None
