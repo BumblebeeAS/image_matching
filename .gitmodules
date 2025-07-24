@@ -1,32 +1,3 @@
-# Not used for RoboSub25
-# [submodule "docs"]
-# 	path = docs
-# 	url = https://github.com/BumblebeeAS/image_matching.wiki
-# [submodule "src/feature_matcher/models/DALF_CVPR_2023"]
-# 	path = src/feature_matcher/models/DALF_CVPR_2023
-# 	url = https://github.com/verlab/DALF_CVPR_2023
-# [submodule "src/feature_matcher/models/LightGlue"]
-# 	path = src/feature_matcher/models/LightGlue
-# 	url = https://github.com/cvg/LightGlue
-# [submodule "src/feature_matcher/models/DKM"]
-# 	path = src/feature_matcher/models/DKM
-# 	url = https://github.com/Parskatt/DKM.git
-# [submodule "src/feature_matcher/models/LoFTR_TRT"]
-# 	path = src/feature_matcher/models/LoFTR_TRT
-# 	url = https://github.com/Amadeus-Winarto/LoFTR_TRT.git
-# [submodule "src/feature_matcher/models/ALIKE"]
-# 	path = src/feature_matcher/models/ALIKE
-# 	url = https://github.com/Shiaoming/ALIKE.git
-# [submodule "src/feature_matcher/models/QuadTreeAttention"]
-# 	path = src/feature_matcher/models/QuadTreeAttention
-# 	url = https://github.com/Tangshitao/QuadTreeAttention.git
-# [submodule "src/feature_matcher/models/Coarse_LoFTR_TRT"]
-# 	path = src/feature_matcher/models/Coarse_LoFTR_TRT
-# 	url = https://github.com/Kolkir/Coarse_LoFTR_TRT.git
-# [submodule "src/feature_matcher/models/SuperGluePretrainedNetwork"]
-# 	path = src/feature_matcher/models/SuperGluePretrainedNetwork
-# 	url = https://github.com/BumblebeeAS/SuperGluePretrainedNetwork.git
-
 [submodule "src/feature_matcher/models/accelerated_features"]
     path = src/feature_matcher/models/accelerated_features
     url = https://github.com/BumblebeeAS/accelerated_features.git
