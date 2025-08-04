@@ -23,7 +23,7 @@ In another terminal:
 source install/setup.bash
 ros2 service call /image_matching/toggle_template bb_perception_msgs/srv/IMPoseEstimatorToggleTemplate "template_name: 'Task04_Tagging_01.png'
 camera_frame_id: 'auv4/front_cam_optical'
-enabled: true"
+enable: true"
 ```
 
 See `image_matching/image` for visualization. Point correspondences are published at `image_matching/point_correspondences`.

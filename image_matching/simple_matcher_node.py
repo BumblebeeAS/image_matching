@@ -19,7 +19,8 @@ from imutils import resize
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
-from utils.ros_np_multiarray import to_multiarray_f64
+
+from image_processing.utils.ros_np_multiarray import to_multiarray_f64
 
 
 class SimpleMatcherNode(Node):
@@ -131,20 +132,20 @@ class SimpleMatcherNode(Node):
         request: IMPoseEstimatorToggleTemplate.Request,
         response: IMPoseEstimatorToggleTemplate.Response,
     ):
-        if not request.enabled:
+        if not request.enable:
             self.get_logger().info("Disabling template matching.")
             self.template_name = None
             response.new_state = False
             response.error_message = "All templates disabled."
             return response
 
-        if request.template_name not in self.matcher.templates_with_keypoints:
+        elif request.template_name not in self.matcher.templates_with_keypoints:
             self.get_logger().warn(f"Template {request.template_name} not found.")
             response.new_state = False
             response.error_message = f"Template {request.template_name} not found."
             return response
 
-        if request.enabled:
+        else:
             self.get_logger().info(
                 f"Enabling template matching for {request.template_name}."
             )
