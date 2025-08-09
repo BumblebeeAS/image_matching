@@ -38,31 +38,49 @@ class SimpleMatcherNode(Node):
             / "templates"
             / "robosub25"
         )
-        self.declare_parameter("templates_dir", default_templates_dir.as_posix())
-        self.declare_parameter(
-            "toggle_template_topic", "image_matching/toggle_template"
-        )
-        self.declare_parameter("input_image_topic", "image")
 
+        # Parameters
+        templates_dir = (
+            self.declare_parameter("templates_dir", default_templates_dir.as_posix())
+            .get_parameter_value()
+            .string_value
+        )
+        toggle_template_topic = (
+            self.declare_parameter(
+                "toggle_template_topic", "image_matching/toggle_template"
+            )
+            .get_parameter_value()
+            .string_value
+        )
+        input_image_topic = (
+            self.declare_parameter("input_image_topic", "image")
+            .get_parameter_value()
+            .string_value
+        )
+        output_annotations_topic = (
+            self.declare_parameter(
+                "output_annotations_topic", rclpy.Parameter.Type.STRING
+            )
+            .get_parameter_value()
+            .string_value
+        )
+
+        # Initialize matcher
         self.matcher = XFeatMatcher()
 
-        templates_dir = Path(
-            self.get_parameter("templates_dir").get_parameter_value().string_value
-        )
+        templates_dir_path = Path(templates_dir)
         template_json: Dict[str, Dict] = json.loads(
-            open(templates_dir / "templates.json", "r").read()
+            open(templates_dir_path / "templates.json", "r").read()
         )
-        self.template_specs = get_template_specs(templates_dir, template_json)
+        self.template_specs = get_template_specs(templates_dir_path, template_json)
         for template_name, template in self.template_specs.items():
             self.get_logger().info(
                 f"Template {template_name}: {template.dimensions}, {template.offset}, {template.image.shape}"
             )
         self.matcher.set_all_templates(self.template_specs)
 
+        # Subscribers and Publishers
         self.cv_bridge = CvBridge()
-        input_image_topic = (
-            self.get_parameter("input_image_topic").get_parameter_value().string_value
-        )
         self.img_subscriber = self.create_subscription(
             Image, input_image_topic, self.image_callback, qos_profile_sensor_data
         )
@@ -74,27 +92,18 @@ class SimpleMatcherNode(Node):
         self.img_publisher = self.create_publisher(
             Image, "image_matching/image", qos_profile_sensor_data
         )
+        self.annotations_pub = self.create_publisher(
+            ImageAnnotations,
+            output_annotations_topic,
+            qos_profile=qos_profile_sensor_data,
+        )
 
         # Toggle Template Service
         self.template_name: None | str = None
-        toggle_template_topic = (
-            self.get_parameter("toggle_template_topic")
-            .get_parameter_value()
-            .string_value
-        )
         self.toggle_template_service = self.create_service(
             IMPoseEstimatorToggleTemplate,
             toggle_template_topic,
             self.toggle_template_callback,
-        )
-
-        annotations_topic = (
-            self.declare_parameter("annotations_topic", rclpy.Parameter.Type.STRING)
-            .get_parameter_value()
-            .string_value
-        )
-        self.annotations_pub = self.create_publisher(
-            ImageAnnotations, annotations_topic, qos_profile=qos_profile_sensor_data
         )
 
     def publish_image_annotations(
