@@ -297,7 +297,20 @@ def get_image_match_empty_canvas(template: MatLike, img: MatLike) -> MatLike:
 
 
 # based on: https://github.com/verlab/accelerated_features/blob/main/notebooks/xfeat%2Blg_torch_hub.ipynb
-def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
+def get_warped_corners(ref_points, dst_points, img1):
+    """_summary_
+
+    Args:
+        ref_points (_type_): _description_
+        dst_points (_type_): _description_
+        img1 (_type_): _description_
+
+    Raises:
+        cv2.error: If cv2.perspectiveTransform fails.
+
+    Returns:
+        _type_: _description_
+    """
     # Calculate the Homography matrix
     H, mask = cv2.findHomography(
         ref_points, dst_points, cv2.USAC_MAGSAC, 3.5, maxIters=1_000, confidence=0.999
@@ -311,8 +324,15 @@ def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
     ).reshape(-1, 1, 2)
 
     # Warp corners to the second image (image2) space
+    warped_corners = cv2.perspectiveTransform(corners_img1, H)
+
+    return mask, warped_corners
+
+
+# based on: https://github.com/verlab/accelerated_features/blob/main/notebooks/xfeat%2Blg_torch_hub.ipynb
+def warp_corners_and_draw_matches(ref_points, dst_points, img1, img2):
     try:
-        warped_corners = cv2.perspectiveTransform(corners_img1, H)
+        mask, warped_corners = get_warped_corners(ref_points, dst_points, img1)
     except cv2.error as e:
         # TODO: Handle cv2.error: OpenCV(4.11.0) ... error: (-215:Assertion failed) scn + 1 == m.cols in function 'perspectiveTransform'
         print(f"Error in perspectiveTransform: {e}")

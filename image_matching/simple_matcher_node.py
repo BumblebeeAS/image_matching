@@ -1,7 +1,9 @@
 import json
+from itertools import chain
 from pathlib import Path
 from typing import Dict
 
+import cv2
 import numpy as np
 import rclpy
 from ament_index_python import get_package_share_directory
@@ -12,14 +14,18 @@ from cv_bridge import CvBridge
 from feature_matcher.tools import (
     get_image_match_empty_canvas,
     get_template_specs,
+    get_warped_corners,
     warp_corners_and_draw_matches,
 )
 from feature_matcher.xfeat import XFeatMatcher
+from foxglove_msgs.msg import ImageAnnotations, PointsAnnotation
 from imutils import resize
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from std_msgs.msg import Header
 
+from image_processing.utils.image_annotations import get_image_annotations
 from image_processing.utils.ros_np_multiarray import to_multiarray_f64
 
 
@@ -82,6 +88,44 @@ class SimpleMatcherNode(Node):
             self.toggle_template_callback,
         )
 
+        annotations_topic = (
+            self.declare_parameter("annotations_topic", rclpy.Parameter.Type.STRING)
+            .get_parameter_value()
+            .string_value
+        )
+        self.annotations_pub = self.create_publisher(
+            ImageAnnotations, annotations_topic, qos_profile=qos_profile_sensor_data
+        )
+
+    def publish_image_annotations(
+        self,
+        header: Header,
+        template_mkps: np.ndarray,
+        image_mkps: np.ndarray,
+        template,
+    ) -> None:
+        try:
+            _, warped_corners = get_warped_corners(
+                template_mkps, image_mkps, template.image
+            )
+        except cv2.error:
+            self.get_logger().info(
+                "Failed to get warped corners for image points, skipping annotations..."
+            )
+            return
+
+        polygon_image_annotations: ImageAnnotations = get_image_annotations(
+            header, [[warped_corners.squeeze()]], ["#00FF00"]
+        )
+        points_image_annotations: ImageAnnotations = get_image_annotations(
+            header, [[image_mkps]], ["#00FF00"], PointsAnnotation.POINTS
+        )
+        points_annotations = list(
+            chain(polygon_image_annotations.points, points_image_annotations.points)
+        )
+        output_msg = ImageAnnotations(points=points_annotations)
+        self.annotations_pub.publish(output_msg)
+
     def image_callback(self, msg: Image) -> None:
         if self.template_name is None:
             return
@@ -103,6 +147,7 @@ class SimpleMatcherNode(Node):
         points_msg.image_points = to_multiarray_f64(image_mkps)
         self.points_publisher.publish(points_msg)
 
+        # Publish image containing template matches
         # TODO: Move annotation to separate node
         template = self.matcher.templates_with_keypoints[self.template_name]
         _template = resize(template.image, width=200)
@@ -126,6 +171,8 @@ class SimpleMatcherNode(Node):
 
         img_msg = self.cv_bridge.cv2_to_imgmsg(canvas, encoding="bgr8")
         self.img_publisher.publish(img_msg)
+
+        self.publish_image_annotations(msg.header, template_mkps, image_mkps, template)
 
     def toggle_template_callback(
         self,
