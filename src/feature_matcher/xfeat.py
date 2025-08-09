@@ -4,7 +4,6 @@ from typing import Dict, Tuple
 
 import numpy as np
 from cv2.typing import MatLike
-from numpy.typing import ArrayLike
 from torch import Tensor
 
 import feature_matcher
@@ -94,7 +93,7 @@ class XFeatMatcher:
 
     def get_matches(
         self, template_name: str, image: MatLike
-    ) -> Tuple[ArrayLike, ArrayLike]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Get matches between the template and the image.
         This method uses the XFeat model to detect and compute keypoints and descriptors
         for both the template and the image. It then matches the keypoints and descriptors
@@ -105,7 +104,7 @@ class XFeatMatcher:
             image (MatLike): Image to match against the template
 
         Returns:
-            Tuple[ArrayLike, ArrayLike]: Matched keypoints from the template and the image.
+            Tuple[np.ndarray, np.ndarray]: Matched keypoints from the template and the image.
         """
         template = self.templates_with_keypoints[template_name]
         template_data = {
@@ -132,7 +131,7 @@ class XFeatMatcher:
 
     def get_matches_cossim(
         self, template_name: str, image: MatLike
-    ) -> Tuple[ArrayLike, ArrayLike]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Get matches between the template and the image.
         This method uses the XFeat model to detect and compute keypoints and descriptors
         for both the template and the image. It then matches the keypoints and descriptors
@@ -143,7 +142,7 @@ class XFeatMatcher:
             image (MatLike): Image to match against the template
 
         Returns:
-            Tuple[ArrayLike, ArrayLike]: Matched keypoints from the template and the image.
+            Tuple[np.ndarray, np.ndarray]: Matched keypoints from the template and the image.
         """
         template = self.templates_with_keypoints[template_name]
         template_kps = template.keypoints
