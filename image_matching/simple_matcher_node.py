@@ -11,12 +11,7 @@ from bb_perception_msgs.msg import PointCorrespondencesStamped
 from bb_perception_msgs.srv import IMPoseEstimatorToggleTemplate
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
-from feature_matcher.tools import (
-    get_image_match_empty_canvas,
-    get_template_specs,
-    get_warped_corners,
-    warp_corners_and_draw_matches,
-)
+from feature_matcher.tools import get_template_specs, get_warped_corners
 from feature_matcher.xfeat import XFeatMatcher
 from foxglove_msgs.msg import ImageAnnotations, PointsAnnotation
 from imutils import resize
@@ -89,9 +84,6 @@ class SimpleMatcherNode(Node):
             "image_matching/point_correspondences",
             qos_profile_sensor_data,
         )
-        self.img_publisher = self.create_publisher(
-            Image, "image_matching/image", qos_profile_sensor_data
-        )
         self.annotations_pub = self.create_publisher(
             ImageAnnotations,
             output_annotations_topic,
@@ -159,28 +151,6 @@ class SimpleMatcherNode(Node):
         # Publish image containing template matches
         # TODO: Move annotation to separate node
         template = self.matcher.templates_with_keypoints[self.template_name]
-        _template = resize(template.image, width=200)
-        scale_template = template.image.shape[1] / _template.shape[1]
-        _img = resize(img, width=600)
-        scale_img = img.shape[1] / _img.shape[1]
-
-        if len(template_mkps) < 4 or len(image_mkps) < 4:
-            self.get_logger().warn(
-                f"Insufficient matches found. Found {len(template_mkps)}, 4 or more required."
-            )
-            canvas = get_image_match_empty_canvas(_template, _img)
-            self.img_publisher.publish(
-                self.cv_bridge.cv2_to_imgmsg(canvas, encoding="bgr8")
-            )
-            return
-
-        canvas: MatLike = warp_corners_and_draw_matches(
-            template_mkps // scale_template, image_mkps // scale_img, _template, _img
-        )
-
-        img_msg = self.cv_bridge.cv2_to_imgmsg(canvas, encoding="bgr8")
-        self.img_publisher.publish(img_msg)
-
         self.publish_image_annotations(msg.header, template_mkps, image_mkps, template)
 
     def toggle_template_callback(
