@@ -30,7 +30,9 @@ See `image_matching/image` for visualization. Point correspondences are publishe
 
 ## Notes
 
-Use XFeat for general, upright camera matching. For matching between images with large orientation differences (e.g., drone imagery), try SIFT-FLANN.
+Use XFeat for general, upright camera matching. For matching between images with large orientation differences (e.g., drone imagery), try SIFT-FLANN or [DALF](https://github.com/verlab/DALF_CVPR_2023).
+
+See [this commit](https://github.com/BumblebeeAS/image_matching/commit/72e45e7c73e4010efcecb51d2a4896534290abae) for the old image matchers that the seniors used.
 
 ## References
 
