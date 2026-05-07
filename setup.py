@@ -52,11 +52,31 @@ setup(
             + glob(os.path.join("templates", "*.png"), recursive=True)
             + glob(os.path.join("templates", "*.jpg"), recursive=True),
         ),
+        # (
+        #     os.path.join("share", package_name, "templates", "robosub25"),
+        #     glob(
+        #         os.path.join("templates", "robosub25", "*.json"),
+        #         recursive=True,
+        #     )
+        #     + glob(
+        #         os.path.join("templates", "robosub25", "*.png"), recursive=True
+        #     )
+        #     + glob(
+        #         os.path.join("templates", "robosub25", "*.jpg"), recursive=True
+        #     ),
+        # ),
         (
-            os.path.join("share", package_name, "templates", "robosub25"),
-            glob(os.path.join("templates", "robosub25", "*.json"), recursive=True)
-            + glob(os.path.join("templates", "robosub25", "*.png"), recursive=True)
-            + glob(os.path.join("templates", "robosub25", "*.jpg"), recursive=True),
+            os.path.join("share", package_name, "templates", "robosub26"),
+            glob(
+                os.path.join("templates", "robosub26", "*.json"),
+                recursive=True,
+            )
+            + glob(
+                os.path.join("templates", "robosub26", "*.png"), recursive=True
+            )
+            + glob(
+                os.path.join("templates", "robosub26", "*.jpg"), recursive=True
+            ),
         ),
     ],
     install_requires=[

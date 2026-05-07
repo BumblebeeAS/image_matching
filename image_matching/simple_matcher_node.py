@@ -31,12 +31,14 @@ class SimpleMatcherNode(Node):
         default_templates_dir = (
             Path(get_package_share_directory("image_matching"))
             / "templates"
-            / "robosub25"
+            / "robosub26"
         )
 
         # Parameters
         templates_dir = (
-            self.declare_parameter("templates_dir", default_templates_dir.as_posix())
+            self.declare_parameter(
+                "templates_dir", default_templates_dir.as_posix()
+            )
             .get_parameter_value()
             .string_value
         )
@@ -47,11 +49,18 @@ class SimpleMatcherNode(Node):
             .get_parameter_value()
             .string_value
         )
+
         input_image_topic = (
-            self.declare_parameter("input_image_topic", "image")
+            # self.declare_parameter(
+            #     "input_image_topic", "/auv4/front_cam/color/brighten/image"
+            # )
+            self.declare_parameter(
+                "input_image_topic", "/auv4/front_cam/color/rect/image"
+            )
             .get_parameter_value()
             .string_value
         )
+
         output_annotations_topic = (
             self.declare_parameter(
                 "output_annotations_topic", rclpy.Parameter.Type.STRING
@@ -67,7 +76,9 @@ class SimpleMatcherNode(Node):
         template_json: Dict[str, Dict] = json.loads(
             open(templates_dir_path / "templates.json", "r").read()
         )
-        self.template_specs = get_template_specs(templates_dir_path, template_json)
+        self.template_specs = get_template_specs(
+            templates_dir_path, template_json
+        )
         for template_name, template in self.template_specs.items():
             self.get_logger().info(
                 f"Template {template_name}: {template.dimensions}, {template.offset}, {template.image.shape}"
@@ -77,7 +88,10 @@ class SimpleMatcherNode(Node):
         # Subscribers and Publishers
         self.cv_bridge = CvBridge()
         self.img_subscriber = self.create_subscription(
-            Image, input_image_topic, self.image_callback, qos_profile_sensor_data
+            Image,
+            input_image_topic,
+            self.image_callback,
+            qos_profile_sensor_data,
         )
         self.points_publisher = self.create_publisher(
             PointCorrespondencesStamped,
@@ -122,7 +136,10 @@ class SimpleMatcherNode(Node):
             header, [[image_mkps]], ["#00FF00"], PointsAnnotation.POINTS
         )
         points_annotations = list(
-            chain(polygon_image_annotations.points, points_image_annotations.points)
+            chain(
+                polygon_image_annotations.points,
+                points_image_annotations.points,
+            )
         )
         output_msg = ImageAnnotations(points=points_annotations)
         self.annotations_pub.publish(output_msg)
@@ -132,14 +149,18 @@ class SimpleMatcherNode(Node):
             return
 
         img: MatLike = self.cv_bridge.imgmsg_to_cv2(msg)
-        template_mkps, image_mkps = self.matcher.get_matches(self.template_name, img)
+        template_mkps, image_mkps = self.matcher.get_matches(
+            self.template_name, img
+        )
 
         # Send 3D object - 2D image correspondences
         template_spec = self.template_specs[self.template_name]
         image_dims = np.array(template_spec.image.shape[:2][::-1])
         object_dims = np.array(template_spec.dimensions)
         object_mkps = template_mkps / image_dims * object_dims
-        object_mkps = np.hstack([object_mkps, np.zeros((object_mkps.shape[0], 1))])
+        object_mkps = np.hstack(
+            [object_mkps, np.zeros((object_mkps.shape[0], 1))]
+        )
 
         points_msg = PointCorrespondencesStamped()
         points_msg.header = msg.header
@@ -151,7 +172,9 @@ class SimpleMatcherNode(Node):
         # Publish image containing template matches
         # TODO: Move annotation to separate node
         template = self.matcher.templates_with_keypoints[self.template_name]
-        self.publish_image_annotations(msg.header, template_mkps, image_mkps, template)
+        self.publish_image_annotations(
+            msg.header, template_mkps, image_mkps, template
+        )
 
     def toggle_template_callback(
         self,
@@ -165,10 +188,16 @@ class SimpleMatcherNode(Node):
             response.error_message = "All templates disabled."
             return response
 
-        elif request.template_name not in self.matcher.templates_with_keypoints:
-            self.get_logger().warn(f"Template {request.template_name} not found.")
+        elif (
+            request.template_name not in self.matcher.templates_with_keypoints
+        ):
+            self.get_logger().warn(
+                f"Template {request.template_name} not found."
+            )
             response.new_state = False
-            response.error_message = f"Template {request.template_name} not found."
+            response.error_message = (
+                f"Template {request.template_name} not found."
+            )
             return response
 
         else:
