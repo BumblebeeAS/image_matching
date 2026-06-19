@@ -10,7 +10,7 @@
   <!-- 3rd party -->
   <exec_depend>image_transport</exec_depend>
   <exec_depend>python-opencv-contrib-pip</exec_depend>
-  <exec_depend>python3-transforms3d-pip</exec_depend>
+  <exec_depend>python-transforms3d-pip</exec_depend>
   <exec_depend>python3-imutils-pip</exec_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
 
