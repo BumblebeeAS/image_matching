@@ -1,0 +1,9 @@
+repositories:
+  bb_msgs:
+    type: git
+    url: https://github.com/BumblebeeAS/bb_msgs.git
+    version: humble
+  image_processing:
+    type: git
+    url: https://github.com/BumblebeeAS/image_processing.git
+    version: main

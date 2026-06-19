@@ -1,41 +1,24 @@
 name: CI/CD
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: [self-hosted, ros2-humble]
+    runs-on: ubuntu-22.04
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-jammy-latest
     steps:
-      # - name: Setup ROS
-      #   uses: ros-tooling/setup-ros@v0.3
-      #   with:
-      #     required-ros-distributions: noetic
+      - uses: actions/checkout@v4
 
-      # - name: Install packages
-      #     run: sudo apt-get install python3-catkin-tools xorg-dev libjsoncpp-dev qtbase5-dev
-
-      - name: Setup catkin workspace
-        run: source /opt/ros/humble/setup.bash
-
-      - name: Check out repo
-        uses: actions/checkout@v3
+      - name: Build ROS 2 package
+        uses: ros-tooling/action-ros-ci@v0.3
         with:
-          token: ${{ secrets.CI_TOKEN }}
-          path: src/image_matching
-
-      - name: Check out bb_msgs
-        uses: actions/checkout@v3
-        with:
-          repository: BumblebeeAS/bb_msgs
-          token: ${{ secrets.CI_TOKEN }}
-          path: src/bb_msgs
-          ref: humble
-
-      - name: Install dependencies
-        run: source /opt/ros/humble/setup.bash && rosdep update && rosdep install --from-paths src -i -r -y
-
-      - name: Build
-        run: source /opt/ros/humble/setup.bash && colcon build
-
-      # - name: Run tests
-      #   run: source devel/setup.bash && ./src/image_matching/tests/test_matcher_service.py
+          package-name: image_matching
+          target-ros2-distro: humble
+          vcs-repo-file-url: ${{ github.workspace }}/.github/workflows/deps.repos
+          skip-tests: true
