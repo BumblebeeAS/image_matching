@@ -30,6 +30,8 @@ See `image_matching/image` for visualization. Point correspondences are publishe
 
 ## Notes
 
+To obtain a pose from the output, run PnP on the 2D–3D correspondences (e.g., see [pose_estimator/points_pose_estimator_node](https://github.com/BumblebeeAS/pose_estimator/blob/main/pose_estimator/points_pose_estimator_node.py)). We don't run PnP here since these raw correspondences can be combined with other detections downstream for a better estimate.
+
 Use XFeat for general, upright camera matching. For matching between images with large orientation differences (e.g., drone imagery), try SIFT-FLANN or [DALF](https://github.com/verlab/DALF_CVPR_2023).
 
 See [this commit](https://github.com/BumblebeeAS/image_matching/commit/72e45e7c73e4010efcecb51d2a4896534290abae) for the old image matchers that the seniors used.
